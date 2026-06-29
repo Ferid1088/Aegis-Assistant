@@ -13,6 +13,7 @@ from sentence_transformers import CrossEncoder
 from rag.capabilities.search.search_service import SearchService
 from rag.config import settings
 from rag.crosscutting.context import Context
+import rag.crosscutting.observability.tracing as _tracing
 from rag.crosscutting.observability.tracing import traced
 from rag.crosscutting.security.acl import acl_filter, live_recheck, log_retrieval_audit, type_filter
 from rag.llm.provider import get_device, get_llm
@@ -315,6 +316,22 @@ def _generate_impl(question: str, reranked: list[RetrievedChunk],
         }
         for c in reranked
     ]
+
+    # Record behavior outcome on this span — no pipeline logic change.
+    _declined_phrases = ("nicht ableitbar", "not found", "nicht im kontext",
+                         "cannot answer", "keine information", "nicht enthalten",
+                         "is not in the context", "not in the provided")
+    answer_lower = answer.content.lower()
+    if step_results:
+        outcome = "fallback"
+    elif any(p in answer_lower for p in _declined_phrases):
+        outcome = "declined"
+    else:
+        outcome = "answered"
+    _tracing.set_span_attribute("outcome", outcome)
+    if not reranked:
+        _tracing.set_span_attribute("retrieval_miss", True)
+
     return {"answer": answer.content, "citations": citations, "context": ctx_text}
 
 
