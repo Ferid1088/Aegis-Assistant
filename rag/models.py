@@ -11,7 +11,7 @@ class BBox(BaseModel):
 
 class ChunkRecord(BaseModel):
     chunk_id: str
-    type: str
+    type: str  # "text" | "table" | "table_row" | "table_full"
     content: str
     source_file: str
     doc_id: str
@@ -21,6 +21,9 @@ class ChunkRecord(BaseModel):
     bboxes: list[BBox]
     keywords: list[str] = []
     summary: str | None = None
+    tenant_id: str = "default"
+    acl_levels: list[str] = []
+    document_type: str | None = None
 
 
 class DocumentMeta(BaseModel):
@@ -31,6 +34,8 @@ class DocumentMeta(BaseModel):
     doc_version: str | None = None
     is_current: bool = True
     superseded_by: str | None = None
+    tenant_id: str = "default"
+    source_document_ids: list[str] = []
 
 
 class RetrievedChunk(BaseModel):

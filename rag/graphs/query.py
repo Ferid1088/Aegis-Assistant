@@ -24,6 +24,9 @@ class QueryState(TypedDict):
     context: NotRequired[str]
     answer: NotRequired[str]
     citations: NotRequired[list[dict]]
+    tenant_id: NotRequired[str]
+    user_levels: NotRequired[list[str]]
+    intended_types: NotRequired[list[str]]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -111,15 +114,20 @@ def transform_query(state: QueryState) -> dict:
     return {"rewritten_query": rewritten, "expanded_query": expanded}
 
 
+def _build_retrieval_filter(state: QueryState) -> dict | None:
+    flt = dict(state.get("doc_filter") or {})
+    if settings.acl_enforce and state.get("tenant_id"):
+        flt["tenant_id"] = state["tenant_id"]
+    return flt or None
+
+
 def retrieve_dense(state: QueryState) -> dict:
     embedder = get_embedder()
     store = _get_store()
+    flt = _build_retrieval_filter(state)
     queries = [state["question"], state.get("rewritten_query", state["question"])]
     vecs = [v.tolist() for v in embedder.embed(queries)]
-    hits = [
-        store.search_dense(v, settings.dense_top_k, state.get("doc_filter"))
-        for v in vecs
-    ]
+    hits = [store.search_dense(v, settings.dense_top_k, flt) for v in vecs]
     fused = rrf(hits, k=settings.rrf_k)
     print(f"🔍 Dense: {len(fused)} unique chunks from {sum(len(h) for h in hits)} hits")
     return {"dense_results": fused}
@@ -128,13 +136,14 @@ def retrieve_dense(state: QueryState) -> dict:
 def retrieve_sparse(state: QueryState) -> dict:
     sparse_embedder = get_sparse_embedder()
     store = _get_store()
+    flt = _build_retrieval_filter(state)
     queries = [state["question"], state.get("expanded_query", state["question"])]
     svecs = list(sparse_embedder.embed(queries))
     hits = [
         store.search_sparse(
             {"indices": sv.indices.tolist(), "values": sv.values.tolist()},
             settings.sparse_top_k,
-            state.get("doc_filter"),
+            flt,
         )
         for sv in svecs
     ]
@@ -197,6 +206,19 @@ def generate(state: QueryState) -> dict:
 
 
 # ── Graph ────────────────────────────────────────────────────────────────
+
+def _init_langfuse():
+    if not settings.langfuse_enabled:
+        return
+    try:
+        import langfuse
+        langfuse.get_client()
+    except Exception:
+        pass
+
+
+_init_langfuse()
+
 
 def build_query_graph():
     g = StateGraph(QueryState)

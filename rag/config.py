@@ -4,6 +4,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    langfuse_host: str = "http://localhost:3000"
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_enabled: bool = False
+
     llm_backend: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     vllm_base_url: str = "http://localhost:8000/v1"
@@ -36,6 +41,10 @@ class Settings(BaseSettings):
 
     max_generation_tokens: int = 1024
     temperature: float = 0.1
+
+    # ACL seam — master switch; stays False until 05.1 enforces it.
+    # Max-users / max-documents limits live in a future license object, not here.
+    acl_enforce: bool = False
 
 
 settings = Settings()

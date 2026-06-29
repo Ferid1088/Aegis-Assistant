@@ -7,3 +7,23 @@ services:
       NEO4J_server_memory_heap_max__size: 512M
     volumes:
       - ./data/neo4j:/data
+
+  langfuse-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - ./data/langfuse-pg:/var/lib/postgresql/data
+
+  langfuse:
+    image: langfuse/langfuse:2
+    depends_on: [langfuse-db]
+    ports: ["3000:3000"]
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      NEXTAUTH_SECRET: mysecret
+      NEXTAUTH_URL: http://localhost:3000
+      SALT: mysalt
+      TELEMETRY_ENABLED: "false"

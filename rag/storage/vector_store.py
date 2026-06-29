@@ -56,6 +56,9 @@ class QdrantVectorStore(VectorStore):
                         "bboxes": [b.model_dump() for b in rec.bboxes],
                         "keywords": rec.keywords,
                         "summary": rec.summary,
+                        "tenant_id": rec.tenant_id,
+                        "acl_levels": rec.acl_levels,
+                        "document_type": rec.document_type,
                     },
                 )
             )
