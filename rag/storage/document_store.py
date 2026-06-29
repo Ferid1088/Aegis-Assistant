@@ -59,6 +59,13 @@ class SQLiteDocumentStore(DocumentStore):
         ).fetchone()
         return row is not None
 
+    def find_current_by_filename(self, filename: str) -> str | None:
+        row = self.conn.execute(
+            "SELECT doc_id FROM documents WHERE filename = ? AND is_current = 1",
+            (filename,),
+        ).fetchone()
+        return row["doc_id"] if row else None
+
     def mark_superseded(self, old_doc_id: str, new_doc_id: str) -> None:
         self.conn.execute(
             """UPDATE documents

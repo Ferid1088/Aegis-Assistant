@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     max_chunk_tokens: int = 512
     chunk_batch_size: int = 10
+    enrich: bool = False
 
     dense_top_k: int = 20
     sparse_top_k: int = 20
