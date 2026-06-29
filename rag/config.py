@@ -4,10 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    langfuse_host: str = "http://localhost:3000"
-    langfuse_public_key: str = ""
-    langfuse_secret_key: str = ""
-    langfuse_enabled: bool = False
+    observability_db_path: str = "./data/observability.db"
 
     llm_backend: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
@@ -31,6 +28,7 @@ class Settings(BaseSettings):
     max_chunk_tokens: int = 512
     chunk_batch_size: int = 10
     enrich: bool = False
+    build_graph: bool = False
 
     dense_top_k: int = 20
     sparse_top_k: int = 20
@@ -43,7 +41,6 @@ class Settings(BaseSettings):
     temperature: float = 0.1
 
     # ACL seam — master switch; stays False until 05.1 enforces it.
-    # Max-users / max-documents limits live in a future license object, not here.
     acl_enforce: bool = False
 
 
