@@ -2,6 +2,8 @@
 
 import atexit
 import hashlib
+import json
+import re
 import uuid
 from itertools import islice
 from pathlib import Path
@@ -114,6 +116,125 @@ def _batched(iterable, n):
         yield batch
 
 
+# ── Structured table helpers ─────────────────────────────────────────────
+
+def _normalize_amount(raw: str) -> str:
+    raw = raw.strip().replace("€", "").strip()
+    if not raw or raw == "-":
+        return ""
+    parts = raw.replace(".", "").split(",")
+    if len(parts) == 2:
+        integer, decimal = parts
+        if len(integer) > 3:
+            integer = integer[:-3] + "." + integer[-3:]
+        return f"{integer},{decimal} €"
+    return raw + " €"
+
+
+def _grade_variants(grade: str) -> str:
+    compact = grade.replace(" ", "")
+    if compact != grade:
+        return f"{grade} ({compact})"
+    spaced = re.sub(r"([A-Za-z]+)(\d)", r"\1 \2", grade)
+    if spaced != grade:
+        return f"{grade} ({spaced})"
+    return grade
+
+
+def _detect_stufe_labels(first_row: list[str]) -> list[str]:
+    labels = []
+    for cell in first_row:
+        cell = cell.strip()
+        labels.append("" if cell in ("€", "") else cell)
+    return labels
+
+
+def _has_structured_rows(table: dict) -> bool:
+    """Any table with ≥2 rows where data rows have numeric cells gets structured."""
+    if len(table["rows"]) < 2:
+        return False
+    for row in table["rows"][1:3]:
+        if any(re.search(r"\d{3,4},\d{2}", cell) for cell in row if cell):
+            return True
+    return False
+
+
+def _build_table_chunks(
+    tables_path: Path, source_file: str, doc_id: str, doc_version: str | None
+) -> list[ChunkRecord]:
+    if not tables_path.exists():
+        return []
+    with open(tables_path) as f:
+        data = json.load(f)
+
+    chunks: list[ChunkRecord] = []
+    for table in data["tables"]:
+        page = table["page"]
+        caption = table.get("caption", "")
+        rows = table["rows"]
+
+        if not _has_structured_rows(table):
+            continue
+
+        stufe_labels = _detect_stufe_labels(rows[0])
+
+        for row in rows[1:]:
+            grade = row[0].strip()
+            if not grade or grade == "€":
+                continue
+            grade_display = _grade_variants(grade)
+
+            for col_idx in range(1, len(row)):
+                amount_raw = row[col_idx].strip()
+                if not amount_raw or amount_raw == "-":
+                    continue
+                if not re.search(r"\d", amount_raw):
+                    continue
+
+                stufe = stufe_labels[col_idx] if col_idx < len(stufe_labels) else str(col_idx)
+                amount = _normalize_amount(amount_raw)
+                if not amount:
+                    continue
+
+                content = f"Entgeltgruppe {grade_display}, Stufe {stufe}: {amount} (Monatsentgelt, TV-L)"
+                chunks.append(ChunkRecord(
+                    chunk_id=str(uuid.uuid4()),
+                    type="table_row",
+                    content=content,
+                    source_file=source_file,
+                    doc_id=doc_id,
+                    doc_version=doc_version,
+                    page_numbers=[page],
+                    heading_path=[caption] if caption else [],
+                    bboxes=[],
+                    keywords=[grade.replace(" ", ""), grade, f"Stufe {stufe}"],
+                ))
+
+        md_lines = []
+        if caption:
+            md_lines.append(caption)
+            md_lines.append("")
+        header = "| " + " | ".join(stufe_labels) + " |"
+        md_lines.append(header)
+        md_lines.append("|" + "---|" * len(stufe_labels))
+        for row in rows[1:]:
+            md_lines.append("| " + " | ".join(row) + " |")
+
+        chunks.append(ChunkRecord(
+            chunk_id=str(uuid.uuid4()),
+            type="table_full",
+            content="\n".join(md_lines),
+            source_file=source_file,
+            doc_id=doc_id,
+            doc_version=doc_version,
+            page_numbers=[page],
+            heading_path=[caption] if caption else [],
+            bboxes=[],
+        ))
+
+    return chunks
+
+
 # ── Nodes ────────────────────────────────────────────────────────────────
 
 def convert(state: IngestionState) -> dict:
@@ -159,6 +280,7 @@ def chunk_and_index(state: IngestionState) -> dict:
 
     meta = state["doc_meta"]
     docling_path = Path(state["docling_path"])
+    file_path = Path(state["file_path"])
 
     doc = DoclingDocument.load_from_json(docling_path)
 
@@ -175,15 +297,21 @@ def chunk_and_index(state: IngestionState) -> dict:
     test_dim = len(list(embedder.embed(["dim"]))[0])
     vec_store.ensure_collection(dense_dim=test_dim)
 
-    total = 0
+    # ── TEXT chunks (unchanged path) ─────────────────────────────────
+    text_total = 0
+    table_skipped = 0
     for batch in _batched(chunks_iter, settings.chunk_batch_size):
         records = []
         texts = []
         for chunk in batch:
+            if _chunk_type(chunk.meta) == "table":
+                table_skipped += 1
+                continue
+
             chunk_id = str(uuid.uuid4())
             records.append(ChunkRecord(
                 chunk_id=chunk_id,
-                type=_chunk_type(chunk.meta),
+                type="text",
                 content=chunk.text,
                 source_file=meta.filename,
                 doc_id=meta.doc_id,
@@ -194,17 +322,38 @@ def chunk_and_index(state: IngestionState) -> dict:
             ))
             texts.append(chunk.text)
 
-        dense_vecs = [v.tolist() for v in embedder.embed(texts)]
+        if records:
+            dense_vecs = [v.tolist() for v in embedder.embed(texts)]
+            sparse_vecs = [
+                {"indices": sv.indices.tolist(), "values": sv.values.tolist()}
+                for sv in sparse_embedder.embed(texts)
+            ]
+            vec_store.upsert(records, dense_vecs, sparse_vecs)
+            text_total += len(records)
+
+    print(f"  📄 Text chunks indexed: {text_total} (skipped {table_skipped} flattened table chunks)")
+
+    # ── TABLE chunks (structured from tables.json) ───────────────────
+    tables_path = file_path.parent / f"{file_path.stem}_tables.json"
+    table_chunks = _build_table_chunks(tables_path, meta.filename, meta.doc_id, meta.doc_version)
+
+    table_row_count = 0
+    table_full_count = 0
+    for batch in _batched(table_chunks, settings.chunk_batch_size):
+        batch_texts = [c.content for c in batch]
+        dense_vecs = [v.tolist() for v in embedder.embed(batch_texts)]
         sparse_vecs = [
             {"indices": sv.indices.tolist(), "values": sv.values.tolist()}
-            for sv in sparse_embedder.embed(texts)
+            for sv in sparse_embedder.embed(batch_texts)
         ]
+        vec_store.upsert(batch, dense_vecs, sparse_vecs)
+        table_row_count += sum(1 for c in batch if c.type == "table_row")
+        table_full_count += sum(1 for c in batch if c.type == "table_full")
 
-        vec_store.upsert(records, dense_vecs, sparse_vecs)
-        total += len(batch)
-        print(f"  Indexed batch: {len(batch)} chunks (total: {total})")
+    print(f"  📊 Table chunks indexed: {table_row_count} rows + {table_full_count} whole-table")
 
-    print(f"✅ Indexed {total} chunks")
+    total = text_total + table_row_count + table_full_count
+    print(f"✅ Indexed {total} chunks total")
     return {"indexed_count": total, "status": "done"}
 
 

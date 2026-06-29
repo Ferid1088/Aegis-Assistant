@@ -1,0 +1,14 @@
+{"question": "Was verdient E 12 in Stufe 1?", "grade": "E 12", "stufe": "1", "expected_amount": "3.309,47"}
+{"question": "Wie hoch ist das Monatsentgelt für E 11 Stufe 2?", "grade": "E 11", "stufe": "2", "expected_amount": "3.522,94"}
+{"question": "Welches Gehalt bekommt E 10 in Stufe 3?", "grade": "E 10", "stufe": "3", "expected_amount": "3.653,37"}
+{"question": "Was verdient E 9 in Stufe 4?", "grade": "E 9", "stufe": "4", "expected_amount": "3.560,20"}
+{"question": "Wie hoch ist das Monatsentgelt für E 8 Stufe 5?", "grade": "E 8", "stufe": "5", "expected_amount": "3.202,32"}
+{"question": "Welches Gehalt bekommt E 7 in Stufe 6?", "grade": "E 7", "stufe": "6", "expected_amount": "3.130,87"}
+{"question": "Was verdient E 6 in Stufe 1?", "grade": "E 6", "stufe": "1", "expected_amount": "2.386,77"}
+{"question": "Was verdient E 5 in Stufe 1?", "grade": "E 5", "stufe": "1", "expected_amount": "2.291,51"}
+{"question": "Was verdient E 4 in Stufe 1?", "grade": "E 4", "stufe": "1", "expected_amount": "2.184,36"}
+{"question": "Was verdient E12 in Stufe 4?", "grade": "E 12", "stufe": "4", "expected_amount": "4.609,96"}
+{"question": "Gehalt Entgeltgruppe 12 Stufe 3", "grade": "E 12", "stufe": "3", "expected_amount": "4.162,72"}
+{"question": "E12 West 2018 Stufe 5", "grade": "E 12", "stufe": "5", "expected_amount": "5.187,62"}
+{"question": "Monatsentgelt E9 dritte Stufe", "grade": "E 9", "stufe": "3", "expected_amount": "3.172,55"}
+{"question": "Was bekommt man in E 10 Stufe 2 TV-L?", "grade": "E 10", "stufe": "2", "expected_amount": "3.400,58"}
