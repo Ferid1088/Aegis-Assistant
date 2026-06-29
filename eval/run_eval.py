@@ -126,6 +126,14 @@ def main():
         print(f"  {metric:<25} {score:.4f}")
     print("=" * 60)
 
+    # Persist eval run to observability DB
+    try:
+        from eval.eval_store import write_eval_run
+        write_eval_run("ragas", dict(agg_scores))
+        print("📊 Eval run saved to observability DB")
+    except Exception as e:
+        print(f"  ⚠️ Could not save eval run: {e}")
+
     # Save results
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = RESULTS_DIR / f"baseline_{date.today().isoformat()}.json"

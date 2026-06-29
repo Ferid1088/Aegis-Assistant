@@ -254,6 +254,14 @@ def main():
                 f.write(f"| {r['question']} | {r['grade']} | {r['stufe']} | {r['expected_amount']} | "
                         f"{r['hit_at_10']} | {rank} | {snippets} |\n")
         print(f"\n📄 Results saved to {out_path}")
+
+        # Persist to observability DB
+        try:
+            from eval.eval_store import write_eval_run
+            write_eval_run("table_regression", {"collection": coll, **agg})
+            print("📊 Eval run saved to observability DB")
+        except Exception as e:
+            print(f"  ⚠️ Could not save eval run: {e}")
         return
 
     # A/B comparison mode (original behavior)
@@ -288,6 +296,19 @@ def main():
     print(f"\nVERDICT: B {'FIXES' if e12_fixed else 'does NOT fix'} E12/Stufe4, "
           f"aggregate hit@10 {'IMPROVES' if agg_improved else 'does NOT improve'} "
           f"({agg_a['hit_at_10']:.0%} → {agg_b['hit_at_10']:.0%})")
+
+    # Persist to observability DB
+    try:
+        from eval.eval_store import write_eval_run
+        write_eval_run("table_regression", {
+            "collection_a": COLLECTION_A,
+            "collection_b": COLLECTION_B,
+            **{f"a_{k}": v for k, v in agg_a.items()},
+            **{f"b_{k}": v for k, v in agg_b.items()},
+        })
+        print("📊 Eval run saved to observability DB")
+    except Exception as e:
+        print(f"  ⚠️ Could not save eval run: {e}")
 
 
 if __name__ == "__main__":
