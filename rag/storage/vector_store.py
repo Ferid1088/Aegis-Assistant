@@ -59,6 +59,7 @@ class QdrantVectorStore(VectorStore):
                         "tenant_id": rec.tenant_id,
                         "acl_levels": rec.acl_levels,
                         "document_type": rec.document_type,
+                        "logical_doc_id": rec.logical_doc_id,
                     },
                 )
             )
