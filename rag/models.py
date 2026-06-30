@@ -27,6 +27,7 @@ class ChunkRecord(BaseModel):
     tenant_id: str = "default"
     acl_levels: list[str] = []
     document_type: str | None = None
+    logical_doc_id: str | None = None  # reserved seam (02.1) — stable identity across versions
 
 
 class DocumentMeta(BaseModel):
@@ -39,6 +40,7 @@ class DocumentMeta(BaseModel):
     superseded_by: str | None = None
     tenant_id: str = "default"
     source_document_ids: list[str] = []
+    logical_doc_id: str | None = None  # reserved seam (02.1) — links this version to its LogicalDocument
 
 
 class RetrievedChunk(BaseModel):
