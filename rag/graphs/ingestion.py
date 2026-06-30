@@ -16,6 +16,7 @@ from langgraph.graph import END, START, StateGraph
 
 from convert_pdf import convert as convert_pdf
 from rag.config import settings
+from rag.domain.document_lifecycle import LogicalDocument, ProcessingState, resolve_identity
 from rag.llm.provider import get_embedder, get_sparse_embedder
 from rag.models import BBox, ChunkRecord, DocumentMeta
 from rag.storage.document_store import SQLiteDocumentStore
@@ -54,6 +55,7 @@ class IngestionState(TypedDict):
     doc_version: NotRequired[str]
     doc_meta: NotRequired[DocumentMeta]
     docling_path: NotRequired[str]
+    version_id: NotRequired[str]
     indexed_count: NotRequired[int]
     status: NotRequired[str]
     error: NotRequired[str]
@@ -160,7 +162,8 @@ def _has_structured_rows(table: dict) -> bool:
 
 
 def _build_table_chunks(
-    tables_path: Path, source_file: str, doc_id: str, doc_version: str | None
+    tables_path: Path, source_file: str, doc_id: str, doc_version: str | None,
+    logical_doc_id: str | None = None,
 ) -> list[ChunkRecord]:
     if not tables_path.exists():
         return []
@@ -208,6 +211,7 @@ def _build_table_chunks(
                     heading_path=[caption] if caption else [],
                     bboxes=[],
                     keywords=[grade.replace(" ", ""), grade, f"Stufe {stufe}"],
+                    logical_doc_id=logical_doc_id,
                 ))
 
         md_lines = []
@@ -230,6 +234,7 @@ def _build_table_chunks(
             page_numbers=[page],
             heading_path=[caption] if caption else [],
             bboxes=[],
+            logical_doc_id=logical_doc_id,
         ))
 
     return chunks
@@ -261,17 +266,39 @@ def convert(state: IngestionState) -> dict:
         doc_store.mark_superseded(old_doc_id, doc_id)
         print(f"🔄 Superseded old version (doc_id={old_doc_id[:8]}…)")
 
+    # ── 02.1: logical document / version split (reserved seam, dual-write) ──
+    source_identity = resolve_identity("filesystem", path=str(file_path))
+    logical_doc_id = doc_store.find_logical_by_identity(source_identity)
+    if logical_doc_id is None:
+        logical_doc_id = str(uuid.uuid4())
+        doc_store.create_logical_document(
+            LogicalDocument(logical_doc_id=logical_doc_id, source_identity=source_identity)
+        )
+    version = doc_store.create_version(
+        logical_doc_id=logical_doc_id,
+        content_hash=content_hash,
+        filename=file_path.name,
+        num_pages=num_pages,
+    )
+    doc_store.set_processing_state(version.version_id, ProcessingState.CONVERTING)
+
     meta = DocumentMeta(
         doc_id=doc_id,
         filename=file_path.name,
         content_hash=content_hash,
         num_pages=num_pages,
         doc_version=state.get("doc_version"),
+        logical_doc_id=logical_doc_id,
     )
 
     doc_store.register(meta)
     print(f"📄 Registered {file_path.name} (doc_id={doc_id[:8]}…, {num_pages} pages)")
-    return {"doc_meta": meta, "docling_path": str(docling_path), "status": "converted"}
+    return {
+        "doc_meta": meta,
+        "docling_path": str(docling_path),
+        "version_id": version.version_id,
+        "status": "converted",
+    }
 
 
 def chunk_and_index(state: IngestionState) -> dict:
@@ -279,6 +306,7 @@ def chunk_and_index(state: IngestionState) -> dict:
         return {"status": state.get("status", "skipped")}
 
     meta = state["doc_meta"]
+    version_id = state.get("version_id")
     docling_path = Path(state["docling_path"])
     file_path = Path(state["file_path"])
 
@@ -294,6 +322,7 @@ def chunk_and_index(state: IngestionState) -> dict:
     sparse_embedder = get_sparse_embedder()
 
     vec_store = _get_vec_store()
+    doc_store = _get_doc_store()
     test_dim = len(list(embedder.embed(["dim"]))[0])
     vec_store.ensure_collection(dense_dim=test_dim)
 
@@ -319,6 +348,7 @@ def chunk_and_index(state: IngestionState) -> dict:
                 page_numbers=_page_numbers(chunk.meta),
                 heading_path=chunk.meta.headings or [],
                 bboxes=_extract_bboxes(chunk.meta, doc),
+                logical_doc_id=meta.logical_doc_id,
             ))
             texts.append(chunk.text)
 
@@ -335,7 +365,9 @@ def chunk_and_index(state: IngestionState) -> dict:
 
     # ── TABLE chunks (structured from tables.json) ───────────────────
     tables_path = file_path.parent / f"{file_path.stem}_tables.json"
-    table_chunks = _build_table_chunks(tables_path, meta.filename, meta.doc_id, meta.doc_version)
+    table_chunks = _build_table_chunks(
+        tables_path, meta.filename, meta.doc_id, meta.doc_version, meta.logical_doc_id
+    )
 
     table_row_count = 0
     table_full_count = 0
@@ -410,6 +442,10 @@ def chunk_and_index(state: IngestionState) -> dict:
         graph_store.close()
         print(f"  🔗 Graph: {counts['entities']} entities, {counts['relations']} relations")
         print(f"  📏 Rules: {graph_rule_count} extracted, {len(rule_chunks)} embedded")
+
+    if version_id:
+        doc_store.set_processing_state(version_id, ProcessingState.INDEXED)
+        doc_store.activate_version(version_id)
 
     return {"indexed_count": total, "status": "done"}
 
