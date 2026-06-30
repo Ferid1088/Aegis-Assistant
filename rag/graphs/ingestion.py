@@ -354,6 +354,63 @@ def chunk_and_index(state: IngestionState) -> dict:
 
     total = text_total + table_row_count + table_full_count
     print(f"✅ Indexed {total} chunks total")
+
+    # ── GRAPH branch (optional, BUILD_GRAPH=true) ────────────────────
+    graph_entity_count = 0
+    graph_relation_count = 0
+    graph_rule_count = 0
+    if settings.build_graph:
+        from rag.capabilities.extract import build_rule_chunks, process_chunk_graph
+        from rag.storage.graph_store import Neo4jGraphStore
+
+        graph_store = Neo4jGraphStore()
+        all_rules = []
+        prev_text = None
+
+        text_chunks_for_graph = []
+        chunker2 = HybridChunker(max_tokens=settings.max_chunk_tokens, merge_peers=True)
+        doc2 = DoclingDocument.load_from_json(docling_path)
+        for chunk in chunker2.chunk(doc2):
+            page = _page_numbers(chunk.meta)
+            text_chunks_for_graph.append({
+                "text": chunk.text,
+                "chunk_id": str(uuid.uuid4()),
+                "page": page[0] if page else 0,
+            })
+
+        for i, ch in enumerate(text_chunks_for_graph):
+            result = process_chunk_graph(
+                chunk_text=ch["text"],
+                chunk_id=ch["chunk_id"],
+                doc_id=meta.doc_id,
+                page=ch["page"],
+                doc_version=meta.doc_version,
+                graph_store=graph_store,
+                prev_chunk_text=prev_text,
+            )
+            graph_entity_count += result["entities"]
+            graph_relation_count += result["relations"]
+            graph_rule_count += result["rules"]
+            all_rules.extend(result["rule_artifacts"])
+            prev_text = ch["text"]
+
+            if (i + 1) % 10 == 0:
+                print(f"  🔗 Graph: processed {i + 1}/{len(text_chunks_for_graph)} chunks")
+
+        rule_chunks = build_rule_chunks(all_rules)
+        if rule_chunks:
+            rule_texts = [r.content for r in rule_chunks]
+            rule_dense = [v.tolist() for v in embedder.embed(rule_texts)]
+            rule_sparse = [
+                {"indices": sv.indices.tolist(), "values": sv.values.tolist()}
+                for sv in sparse_embedder.embed(rule_texts)
+            ]
+            vec_store.upsert(rule_chunks, rule_dense, rule_sparse)
+        counts = graph_store.count()
+        graph_store.close()
+        print(f"  🔗 Graph: {counts['entities']} entities, {counts['relations']} relations")
+        print(f"  📏 Rules: {graph_rule_count} extracted, {len(rule_chunks)} embedded")
+
     return {"indexed_count": total, "status": "done"}
 
 

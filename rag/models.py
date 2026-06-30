@@ -1,4 +1,7 @@
-from pydantic import BaseModel
+from decimal import Decimal
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
 
 
 class BBox(BaseModel):
@@ -43,3 +46,58 @@ class RetrievedChunk(BaseModel):
     content: str
     score: float
     metadata: dict
+
+
+class Predicate(BaseModel):
+    variable: str
+    operator: Literal[">=", "<=", "==", "!=", ">", "<", "in_range", "exists", "matches"]
+    value: str | None = None
+    value_high: str | None = None
+    unit: str | None = None
+
+
+class ComputationStep(BaseModel):
+    from_state: str
+    to_state: str
+    increment: Decimal
+    unit: str = "years"
+    source_quote: str = ""
+    page: int = 0
+
+
+class Computation(BaseModel):
+    type: Literal[
+        "cumulative_steps",
+        "threshold_lookup",
+        "date_offset",
+        "difference",
+        "percentage_of",
+        "proration",
+        "operator_tree",
+    ]
+    steps: list[ComputationStep] = []
+    thresholds: list[dict] = []
+    tree: dict[str, Any] = Field(default_factory=dict)
+    scope: dict = Field(default_factory=dict)
+
+
+class RuleArtifact(BaseModel):
+    type: Literal["rule"] = "rule"
+    rule_kind: Literal["threshold", "mapping", "formula", "eligibility",
+                        "deadline", "prohibition", "default", "progression"]
+    statement: str
+    conditions: list[Predicate] = []
+    condition_logic: Literal["all", "any"] = "all"
+    consequence: str
+    variables: list[str] = []
+    scope: list[Predicate] = []
+    domain: str
+    source_doc_id: str
+    source_page: int
+    source_chunk_id: str
+    source_quote: str = Field(max_length=200)
+    doc_version: str | None = None
+    valid_from: str | None = None
+    valid_to: str | None = None
+    confidence: float
+    computation: Computation | None = None

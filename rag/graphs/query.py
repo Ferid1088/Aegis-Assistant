@@ -398,6 +398,8 @@ def _try_resolver(question: str, reranked: list[RetrievedChunk],
         if result.resolved:
             return {
                 "resolver_value": result.value,
+                "resolver_formatted": result.formatted,
+                "resolver_unit": result.unit,
                 "resolver_steps": result.intermediate_steps,
                 "resolver_citations": result.cited_rules,
                 "resolver_confidence": result.confidence,
@@ -414,7 +416,7 @@ def generate(state: QueryState) -> dict:
 
     resolver_result = _try_resolver(state["question"], state["reranked"], ctx=ctx)
     if resolver_result:
-        val = resolver_result["resolver_value"]
+        val = resolver_result.get("resolver_formatted") or str(resolver_result["resolver_value"])
         conf = resolver_result["resolver_confidence"]
         print(f"  🧮 Resolver: {val} ({conf})")
 

@@ -108,9 +108,24 @@ class QdrantVectorStore(VectorStore):
 
     @staticmethod
     def _build_filter(flt: dict) -> qm.Filter:
+        if flt.get("_acl_deny_all"):
+            return qm.Filter(must=[
+                qm.FieldCondition(key="chunk_id", match=qm.MatchValue(value="__impossible__"))
+            ])
+
         conditions = []
         for key, value in flt.items():
-            conditions.append(
-                qm.FieldCondition(key=key, match=qm.MatchValue(value=value))
-            )
+            if key == "acl_levels_any":
+                conditions.append(
+                    qm.FieldCondition(key="acl_levels", match=qm.MatchAny(any=value))
+                )
+            elif key == "document_type_any":
+                conditions.append(qm.Filter(should=[
+                    qm.FieldCondition(key="document_type", match=qm.MatchAny(any=value)),
+                    qm.IsNullCondition(is_null=qm.PayloadField(key="document_type")),
+                ]))
+            else:
+                conditions.append(
+                    qm.FieldCondition(key=key, match=qm.MatchValue(value=value))
+                )
         return qm.Filter(must=conditions)
