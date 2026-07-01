@@ -133,6 +133,17 @@ def _normalize_amount(raw: str) -> str:
     return raw + " €"
 
 
+def _amount_to_float(raw: str) -> float | None:
+    raw = raw.strip().replace("€", "").replace(" ", "")
+    if not raw or raw == "-":
+        return None
+    normalized = raw.replace(".", "").replace(",", ".")
+    try:
+        return float(normalized)
+    except ValueError:
+        return None
+
+
 def _grade_variants(grade: str) -> str:
     compact = grade.replace(" ", "")
     if compact != grade:
@@ -143,12 +154,36 @@ def _grade_variants(grade: str) -> str:
     return grade
 
 
-def _detect_stufe_labels(first_row: list[str]) -> list[str]:
+def _detect_column_labels(first_row: list[str]) -> list[str]:
     labels = []
     for cell in first_row:
         cell = cell.strip()
         labels.append("" if cell in ("€", "") else cell)
     return labels
+
+
+def _looks_like_grade_label(label: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-zÄÖÜäöü]{1,4}\s?\d+[a-zA-Z]?", label.strip()))
+
+
+def _looks_like_step_label(label: str) -> bool:
+    return bool(re.fullmatch(r"\d+[a-zA-Z]?", label.strip()))
+
+
+def _build_row_chunk_content(row_label: str, column_label: str, amount: str) -> str:
+    row_display = _grade_variants(row_label)
+    if _looks_like_grade_label(row_label) and _looks_like_step_label(column_label):
+        return f"Entgeltgruppe {row_display}, Stufe {column_label}: {amount}"
+    return f"Zeile {row_display}, Spalte {column_label}: {amount}"
+
+
+def _row_keywords(row_label: str, column_label: str) -> list[str]:
+    keywords = [row_label.replace(" ", ""), row_label, column_label]
+    if _looks_like_step_label(column_label):
+        keywords.append(f"Stufe {column_label}")
+    else:
+        keywords.append(f"Spalte {column_label}")
+    return keywords
 
 
 def _has_structured_rows(table: dict) -> bool:
@@ -164,6 +199,7 @@ def _has_structured_rows(table: dict) -> bool:
 def _build_table_chunks(
     tables_path: Path, source_file: str, doc_id: str, doc_version: str | None,
     logical_doc_id: str | None = None,
+    is_current: bool = True,
 ) -> list[ChunkRecord]:
     if not tables_path.exists():
         return []
@@ -179,13 +215,12 @@ def _build_table_chunks(
         if not _has_structured_rows(table):
             continue
 
-        stufe_labels = _detect_stufe_labels(rows[0])
+        column_labels = _detect_column_labels(rows[0])
 
         for row in rows[1:]:
             grade = row[0].strip()
             if not grade or grade == "€":
                 continue
-            grade_display = _grade_variants(grade)
 
             for col_idx in range(1, len(row)):
                 amount_raw = row[col_idx].strip()
@@ -194,12 +229,13 @@ def _build_table_chunks(
                 if not re.search(r"\d", amount_raw):
                     continue
 
-                stufe = stufe_labels[col_idx] if col_idx < len(stufe_labels) else str(col_idx)
+                column_label = column_labels[col_idx] if col_idx < len(column_labels) else str(col_idx)
                 amount = _normalize_amount(amount_raw)
+                value_num = _amount_to_float(amount_raw)
                 if not amount:
                     continue
 
-                content = f"Entgeltgruppe {grade_display}, Stufe {stufe}: {amount} (Monatsentgelt, TV-L)"
+                content = _build_row_chunk_content(grade, column_label, amount)
                 chunks.append(ChunkRecord(
                     chunk_id=str(uuid.uuid4()),
                     type="table_row",
@@ -210,17 +246,19 @@ def _build_table_chunks(
                     page_numbers=[page],
                     heading_path=[caption] if caption else [],
                     bboxes=[],
-                    keywords=[grade.replace(" ", ""), grade, f"Stufe {stufe}"],
+                    keywords=_row_keywords(grade, column_label),
+                    value_num=value_num,
                     logical_doc_id=logical_doc_id,
+                    is_current=is_current,
                 ))
 
         md_lines = []
         if caption:
             md_lines.append(caption)
             md_lines.append("")
-        header = "| " + " | ".join(stufe_labels) + " |"
+        header = "| " + " | ".join(column_labels) + " |"
         md_lines.append(header)
-        md_lines.append("|" + "---|" * len(stufe_labels))
+        md_lines.append("|" + "---|" * len(column_labels))
         for row in rows[1:]:
             md_lines.append("| " + " | ".join(row) + " |")
 
@@ -235,6 +273,7 @@ def _build_table_chunks(
             heading_path=[caption] if caption else [],
             bboxes=[],
             logical_doc_id=logical_doc_id,
+            is_current=is_current,
         ))
 
     return chunks
@@ -349,6 +388,7 @@ def chunk_and_index(state: IngestionState) -> dict:
                 heading_path=chunk.meta.headings or [],
                 bboxes=_extract_bboxes(chunk.meta, doc),
                 logical_doc_id=meta.logical_doc_id,
+                is_current=meta.is_current,
             ))
             texts.append(chunk.text)
 
@@ -366,7 +406,8 @@ def chunk_and_index(state: IngestionState) -> dict:
     # ── TABLE chunks (structured from tables.json) ───────────────────
     tables_path = file_path.parent / f"{file_path.stem}_tables.json"
     table_chunks = _build_table_chunks(
-        tables_path, meta.filename, meta.doc_id, meta.doc_version, meta.logical_doc_id
+        tables_path, meta.filename, meta.doc_id, meta.doc_version, meta.logical_doc_id,
+        is_current=meta.is_current,
     )
 
     table_row_count = 0
@@ -387,17 +428,30 @@ def chunk_and_index(state: IngestionState) -> dict:
     total = text_total + table_row_count + table_full_count
     print(f"✅ Indexed {total} chunks total")
 
-    # ── GRAPH branch (optional, BUILD_GRAPH=true) ────────────────────
-    graph_entity_count = 0
-    graph_relation_count = 0
-    graph_rule_count = 0
+    return {"indexed_count": total, "status": "indexed"}
+
+
+def extract_graph_artifacts(state: IngestionState) -> dict:
+    if state.get("status") != "indexed":
+        return {"status": state.get("status", "skipped")}
+
+    version_id = state.get("version_id")
+    doc_store = _get_doc_store()
+
     if settings.build_graph:
+        meta = state["doc_meta"]
+        docling_path = Path(state["docling_path"])
+
+    # ── GRAPH branch (optional, BUILD_GRAPH=true) ────────────────────
         from rag.capabilities.extract import build_rule_chunks, process_chunk_graph
         from rag.storage.graph_store import Neo4jGraphStore
 
         graph_store = Neo4jGraphStore()
+        embedder = get_embedder()
+        sparse_embedder = get_sparse_embedder()
         all_rules = []
         prev_text = None
+        graph_rule_count = 0
 
         text_chunks_for_graph = []
         chunker2 = HybridChunker(max_tokens=settings.max_chunk_tokens, merge_peers=True)
@@ -420,8 +474,6 @@ def chunk_and_index(state: IngestionState) -> dict:
                 graph_store=graph_store,
                 prev_chunk_text=prev_text,
             )
-            graph_entity_count += result["entities"]
-            graph_relation_count += result["relations"]
             graph_rule_count += result["rules"]
             all_rules.extend(result["rule_artifacts"])
             prev_text = ch["text"]
@@ -437,6 +489,7 @@ def chunk_and_index(state: IngestionState) -> dict:
                 {"indices": sv.indices.tolist(), "values": sv.values.tolist()}
                 for sv in sparse_embedder.embed(rule_texts)
             ]
+            vec_store = _get_vec_store()
             vec_store.upsert(rule_chunks, rule_dense, rule_sparse)
         counts = graph_store.count()
         graph_store.close()
@@ -447,7 +500,7 @@ def chunk_and_index(state: IngestionState) -> dict:
         doc_store.set_processing_state(version_id, ProcessingState.INDEXED)
         doc_store.activate_version(version_id)
 
-    return {"indexed_count": total, "status": "done"}
+    return {"status": "done"}
 
 
 # ── Graph ────────────────────────────────────────────────────────────────
@@ -456,7 +509,9 @@ def build_ingestion_graph():
     g = StateGraph(IngestionState)
     g.add_node("convert", convert)
     g.add_node("chunk_and_index", chunk_and_index)
+    g.add_node("extract_graph_artifacts", extract_graph_artifacts)
     g.add_edge(START, "convert")
     g.add_edge("convert", "chunk_and_index")
-    g.add_edge("chunk_and_index", END)
+    g.add_edge("chunk_and_index", "extract_graph_artifacts")
+    g.add_edge("extract_graph_artifacts", END)
     return g.compile()

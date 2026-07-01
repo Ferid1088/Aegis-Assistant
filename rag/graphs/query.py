@@ -281,6 +281,8 @@ def _build_retrieval_filter(state: QueryState) -> dict | None:
         flt.update(tf)
     if settings.acl_enforce and state.get("tenant_id"):
         flt["tenant_id"] = state["tenant_id"]
+    if settings.version_filter:
+        flt["is_current"] = True
     return flt or None
 
 

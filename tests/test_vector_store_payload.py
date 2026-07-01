@@ -80,3 +80,48 @@ def test_logical_doc_id_round_trips_through_qdrant_payload():
 
         # Clean up temp directory
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def test_chunk_record_has_is_current_field():
+    from rag.models import ChunkRecord
+    rec = ChunkRecord(
+        chunk_id="abc",
+        type="text",
+        content="hello",
+        source_file="file.pdf",
+        doc_id="d1",
+        page_numbers=[1],
+        heading_path=[],
+        bboxes=[],
+    )
+    assert rec.is_current is True
+
+
+def test_upsert_includes_is_current(tmp_path):
+    from unittest.mock import MagicMock, patch
+    from rag.models import ChunkRecord
+    from rag.storage.vector_store import QdrantVectorStore
+
+    rec = ChunkRecord(
+        chunk_id="c1",
+        type="text",
+        content="hello",
+        source_file="f.pdf",
+        doc_id="d1",
+        page_numbers=[1],
+        heading_path=[],
+        bboxes=[],
+        is_current=False,
+    )
+
+    with patch("rag.storage.vector_store.QdrantClient") as MockClient:
+        instance = MockClient.return_value
+        vs = QdrantVectorStore.__new__(QdrantVectorStore)
+        vs.client = instance
+        vs.collection = "documents"
+
+        vs.upsert([rec], [[0.1, 0.2]], [{"indices": [0], "values": [1.0]}])
+
+        call_args = instance.upsert.call_args
+        point = call_args[0][1][0]
+        assert point.payload["is_current"] is False

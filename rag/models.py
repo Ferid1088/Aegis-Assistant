@@ -24,10 +24,12 @@ class ChunkRecord(BaseModel):
     bboxes: list[BBox]
     keywords: list[str] = []
     summary: str | None = None
+    value_num: float | None = None
     tenant_id: str = "default"
     acl_levels: list[str] = []
     document_type: str | None = None
     logical_doc_id: str | None = None  # reserved seam (02.1) — stable identity across versions
+    is_current: bool = True
 
 
 class DocumentMeta(BaseModel):
@@ -85,14 +87,20 @@ class Computation(BaseModel):
 
 class RuleArtifact(BaseModel):
     type: Literal["rule"] = "rule"
+    rule_id: str | None = None
     rule_kind: Literal["threshold", "mapping", "formula", "eligibility",
                         "deadline", "prohibition", "default", "progression"]
+    trigger: str | None = None
+    quality: Literal["valid", "uncertain", "invalid"] = "uncertain"
     statement: str
     conditions: list[Predicate] = []
     condition_logic: Literal["all", "any"] = "all"
+    required_inputs: list[str] = []
     consequence: str
     variables: list[str] = []
     scope: list[Predicate] = []
+    overrides: list[str] = []
+    depends_on: list[str] = []
     domain: str
     source_doc_id: str
     source_page: int
