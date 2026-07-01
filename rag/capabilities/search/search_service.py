@@ -24,8 +24,17 @@ class SearchService:
 
     @traced("search.dense.embed")
     def embed_dense(self, texts: list[str], ctx: Context | None = None) -> list[list[float]]:
+        from rag.capabilities.cache import cached
+        from rag.config import settings as _s
+
+        model = _s.dense_embedding_model
         embedder = get_embedder()
-        return [v.tolist() for v in embedder.embed(texts)]
+        results = []
+        for text in texts:
+            key = text + "|" + model
+            vec = cached("embed", key, _s.cache_ttl_embed, lambda t=text: [v.tolist() for v in embedder.embed([t])][0])
+            results.append(vec)
+        return results
 
     @traced("search.sparse.embed")
     def embed_sparse(self, texts: list[str], ctx: Context | None = None) -> list[dict]:

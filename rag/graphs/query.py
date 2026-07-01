@@ -8,8 +8,16 @@ import json
 from typing import NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.checkpoint.memory import InMemorySaver
 from sentence_transformers import CrossEncoder
 
+from rag.capabilities.answerability import (
+    check_structural_coherence,
+    check_temporal_guard,
+    classify,
+    load_candidate_rules,
+)
+from rag.capabilities.contextualize import contextualize_question, normalize_question
 from rag.capabilities.search.search_service import SearchService
 from rag.config import settings
 from rag.crosscutting.context import Context
@@ -22,6 +30,8 @@ from rag.models import RetrievedChunk
 
 class QueryState(TypedDict):
     question: str
+    raw_question: NotRequired[str]
+    standalone_question: NotRequired[str]
     doc_filter: NotRequired[dict]
     rewritten_query: NotRequired[str]
     expanded_query: NotRequired[str]
@@ -40,12 +50,31 @@ class QueryState(TypedDict):
     plan: NotRequired[list[dict]]
     step_results: NotRequired[list[dict]]
     lang: NotRequired[str]
+    answerability_verdict: NotRequired[str]
+    assumptions: NotRequired[list[str]]
+    clarification_question: NotRequired[str]
+    unanswerable_reason: NotRequired[str]
+    gate_candidate_rules: NotRequired[list[dict]]
+    turn_history: NotRequired[list[dict]]
+    repeat_cache: NotRequired[dict]
+    normalized_question: NotRequired[str]
+    cache_hit: NotRequired[bool]
+    cached_answer: NotRequired[str]
+    cached_citations: NotRequired[list[dict]]
+    cached_context: NotRequired[str]
+    was_contextualized: NotRequired[bool]
+    is_followup: NotRequired[bool]
+    conversation_id: NotRequired[str]
+    response_source: NotRequired[str]
 
 
 # ── Singletons ───────────────────────────────────────────────────────────
 
 _search: SearchService | None = None
 _reranker: CrossEncoder | None = None
+_checkpointer = InMemorySaver()
+_MAX_TURNS = 8
+_MAX_CACHE_ENTRIES = 20
 
 
 def _get_search() -> SearchService:
@@ -70,29 +99,36 @@ def _make_ctx(state: QueryState) -> Context:
     )
 
 
+def _trim_cache(cache: dict) -> dict:
+    items = list(cache.items())[-_MAX_CACHE_ENTRIES:]
+    return dict(items)
+
+
 # ── Prompts ──────────────────────────────────────────────────────────────
 
 TRANSFORM_PROMPT = """\
-You are a search query optimizer for German legal/HR documents (TV-L, collective agreements).
+You are a search query optimizer for document-grounded retrieval across legal, HR, policy,
+and technical documents.
 Given a user question, produce a JSON object with four fields:
-- "rewritten": the question rewritten with precise German technical/legal terms (for dense vector search)
-- "expanded": the question expanded with German synonyms and related terms (for sparse keyword search)
+- "rewritten": the question rewritten with precise document-domain terminology for dense vector search
+- "expanded": the question expanded with close synonyms and related terms for sparse keyword search
 - "entities": a list of key entity names mentioned or implied (for graph lookup)
 - "lang": the ISO 639-1 code of the language the QUESTION SENTENCE is written in (e.g. "de", "en"). \
 Judge by the sentence grammar and function words (what/was/wie/welche), NOT by domain terms like \
-"Stufe" or "E12" which are always German regardless of question language.
+codes, table labels, or section markers that may stay unchanged across languages.
 
 Rules:
 - Output ONLY valid JSON, no explanation.
-- Keep rewritten and expanded in German (for retrieval).
-- entities should be canonical German terms.
+- Keep rewritten and expanded in the same language as the user's question unless the
+  question itself explicitly targets a term in another language.
+- entities should use canonical terms from the document/question language.
 - "lang": detect from the QUESTION sentence structure, not domain vocabulary.
 
 Question: {question}
 """
 
 GENERATION_PROMPT = """\
-You are an assistant for tariff/HR documents (TV-L).
+You are an assistant for document-grounded question answering.
 Answer EXCLUSIVELY in this language (ISO code): {lang}.
 Answer in {lang} even if the context is in another language. Translate facts from the \
 context into {lang} as needed.
@@ -107,7 +143,7 @@ Question: {question}
 Reminder: respond ONLY in {lang}."""
 
 SYNTHESIZE_PROMPT = """\
-You are an assistant for tariff/HR documents (TV-L).
+You are an assistant for document-grounded question answering.
 Answer EXCLUSIVELY in this language (ISO code): {lang}.
 Synthesize the step results into a complete answer in {lang}.
 Translate any facts from the context into {lang} as needed.
@@ -142,25 +178,88 @@ def _detect_lang_heuristic(question: str) -> str:
 
 # ── Nodes (thin: read state → call capability → write state) ─────────────
 
+def contextualize(state: QueryState) -> dict:
+    import json as _json
+    from rag.capabilities.cache import read_cache
+
+    raw_question = state["question"]
+    history = state.get("turn_history", [])
+    result = contextualize_question(raw_question, history)
+    standalone = result.standalone_question.strip() or raw_question
+    normalized = normalize_question(standalone)
+
+    # L1: in-memory per-session cache
+    cached_mem = dict(state.get("repeat_cache", {})).get(normalized)
+
+    # L2: Redis cross-session answer cache (key includes doc_filter)
+    cached_redis = None
+    if not cached_mem:
+        _doc_filter_str = _json.dumps(state.get("doc_filter") or {}, sort_keys=True)
+        _redis_key = normalized + "|" + _doc_filter_str
+        cached_redis = read_cache("answer", _redis_key)
+
+    cached = cached_mem or cached_redis
+
+    payload = {
+        "raw_question": raw_question,
+        "question": standalone,
+        "standalone_question": standalone,
+        "normalized_question": normalized,
+        "cache_hit": bool(cached),
+        "was_contextualized": result.was_contextualized,
+        "is_followup": result.is_followup,
+    }
+    if cached:
+        payload.update({
+            "cached_answer": cached.get("answer", ""),
+            "cached_citations": cached.get("citations", []),
+            "cached_context": cached.get("context", ""),
+            "response_source": "cache",
+        })
+    return payload
+
+
+def _route_after_contextualize(state: QueryState) -> str:
+    return "cached_response" if state.get("cache_hit") else "transform_query"
+
+
+def cached_response(state: QueryState) -> dict:
+    return {
+        "answer": state.get("cached_answer", ""),
+        "citations": state.get("cached_citations", []),
+        "context": state.get("cached_context", ""),
+        "response_source": "cache",
+    }
+
 def transform_query(state: QueryState) -> dict:
-    llm = get_llm()
-    prompt = TRANSFORM_PROMPT.format(question=state["question"])
-    response = llm.invoke(prompt)
+    from rag.capabilities.cache import cached
+    from rag.config import settings as _s
 
-    try:
-        text = response.content.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        parsed = json.loads(text)
-        rewritten = parsed.get("rewritten", state["question"])
-        expanded = parsed.get("expanded", state["question"])
-        lang = parsed.get("lang", "de")
-    except (json.JSONDecodeError, AttributeError, IndexError):
-        rewritten = state["question"]
-        expanded = state["question"]
-        lang = "de"
+    question = state["question"]
 
-    heuristic_lang = _detect_lang_heuristic(state["question"])
+    def _call_llm():
+        llm = get_llm()
+        prompt = TRANSFORM_PROMPT.format(question=question)
+        response = llm.invoke(prompt)
+        try:
+            text = response.content.strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            parsed = json.loads(text)
+            return {
+                "rewritten": parsed.get("rewritten", question),
+                "expanded": parsed.get("expanded", question),
+                "lang": parsed.get("lang", "de"),
+            }
+        except (json.JSONDecodeError, AttributeError, IndexError):
+            return {"rewritten": question, "expanded": question, "lang": "de"}
+
+    result = cached("transform", question, _s.cache_ttl_transform, _call_llm)
+    rewritten = result["rewritten"]
+    expanded = result["expanded"]
+    lang = result["lang"]
+
+    heuristic_lang = _detect_lang_heuristic(question)
     if not isinstance(lang, str) or len(lang) != 2:
         lang = heuristic_lang
     elif heuristic_lang != lang and heuristic_lang == "en":
@@ -286,6 +385,80 @@ def rerank(state: QueryState) -> dict:
     return {"reranked": allowed}
 
 
+def check_answerability(state: QueryState) -> dict:
+    ctx = _make_ctx(state)
+    result = classify(state["question"], state.get("reranked", []), ctx=ctx)
+    return {
+        "answerability_verdict": result.verdict,
+        "assumptions": result.assumptions,
+        "clarification_question": result.clarification_question,
+        "unanswerable_reason": result.unanswerable_reason,
+        "gate_candidate_rules": result.gate_candidate_rules,
+    }
+
+
+def _route_answerability(state: QueryState) -> str:
+    verdict = state.get("answerability_verdict", "unanswerable")
+    if verdict in {"answerable", "assumption"}:
+        return "generate"
+    return "gate_response"
+
+
+def gate_response(state: QueryState) -> dict:
+    verdict = state.get("answerability_verdict", "unanswerable")
+    if verdict == "clarification":
+        answer = state.get("clarification_question") or "Ich brauche noch eine genauere Angabe, bevor ich sicher antworten kann."
+    else:
+        answer = state.get("unanswerable_reason") or "Ich kann diese Frage mit den vorhandenen Regeln und Belegen derzeit nicht verlässlich beantworten."
+    return {"answer": answer, "citations": [], "context": "", "response_source": "gate"}
+
+
+def finalize_turn(state: QueryState) -> dict:
+    import json as _json
+    import hashlib as _hashlib
+    from rag.config import settings as _s
+
+    history = list(state.get("turn_history", []))
+    history.append({
+        "user_question": state.get("raw_question", state["question"]),
+        "standalone_question": state.get("standalone_question", state["question"]),
+        "answer": state.get("answer", ""),
+        "answerability_verdict": state.get("answerability_verdict"),
+        "response_source": state.get("response_source", "pipeline"),
+        "was_contextualized": state.get("was_contextualized", False),
+    })
+    history = history[-_MAX_TURNS:]
+
+    cache = dict(state.get("repeat_cache", {}))
+    normalized = state.get("normalized_question")
+    answer = state.get("answer", "")
+    if normalized and answer:
+        entry = {
+            "answer": answer,
+            "citations": state.get("citations", []),
+            "context": state.get("context", ""),
+        }
+        cache[normalized] = entry
+        cache = _trim_cache(cache)
+
+        # L2: persist to Redis answer cache
+        try:
+            from rag.capabilities.cache import get_redis
+            _r = get_redis()
+            if _r is not None:
+                _doc_filter_str = _json.dumps(state.get("doc_filter") or {}, sort_keys=True)
+                _redis_key = normalized + "|" + _doc_filter_str
+                _hashed = _hashlib.sha256(_redis_key.encode()).hexdigest()
+                _r.setex(f"answer:{_hashed}", _s.cache_ttl_answer, _json.dumps(entry))
+        except Exception:
+            pass
+
+    return {
+        "turn_history": history,
+        "repeat_cache": cache,
+    }
+
+
 @traced("generate.llm")
 def _generate_impl(question: str, reranked: list[RetrievedChunk],
                    lang: str = "de",
@@ -344,40 +517,7 @@ def _try_resolver(question: str, reranked: list[RetrievedChunk],
 
     try:
         from rag.capabilities.resolve import resolve_chain
-        from rag.models import Computation, ComputationStep, RuleArtifact
-
-        rules_path = "data/progression_rules.json"
-        import os
-        if not os.path.exists(rules_path):
-            return None
-
-        import json as _json
-        with open(rules_path) as f:
-            rule_data = _json.load(f)
-
-        rules = []
-        for rd in rule_data:
-            comp_data = rd.get("computation")
-            if not comp_data:
-                continue
-            comp = Computation(
-                type=comp_data["type"],
-                steps=[ComputationStep(**s) for s in comp_data.get("steps", [])],
-                scope=comp_data.get("scope", {}),
-            )
-            rules.append(RuleArtifact(
-                rule_kind="progression",
-                statement=rd.get("statement", ""),
-                consequence="Stufe",
-                variables=rd.get("variables", []),
-                domain="TV-L",
-                source_doc_id=rd.get("chunk_id", ""),
-                source_page=32,
-                source_chunk_id=rd.get("chunk_id", ""),
-                source_quote="§16 TV-L Stufenlaufzeit",
-                confidence=0.95,
-                computation=comp,
-            ))
+        rules = load_candidate_rules()
 
         if not rules:
             return None
@@ -403,6 +543,7 @@ def _try_resolver(question: str, reranked: list[RetrievedChunk],
                 "resolver_steps": result.intermediate_steps,
                 "resolver_citations": result.cited_rules,
                 "resolver_confidence": result.confidence,
+                "resolver_source_rules": result.source_rules,
             }
     except Exception as e:
         print(f"  ⚠️ Resolver error: {e}")
@@ -413,9 +554,28 @@ def _try_resolver(question: str, reranked: list[RetrievedChunk],
 def generate(state: QueryState) -> dict:
     ctx = _make_ctx(state)
     lang = state.get("lang", "de")
+    assumptions = state.get("assumptions", [])
 
     resolver_result = _try_resolver(state["question"], state["reranked"], ctx=ctx)
     if resolver_result:
+        temporal_issue = check_temporal_guard(state["question"], resolver_result, state["reranked"])
+        if temporal_issue:
+            stage = temporal_issue.get("stage")
+            partial = f" Ich kann aber noch {stage} aus den Regeln ableiten." if stage else ""
+            return {
+                "answer": f"Ich kann das aktuelle Entgelt nicht verlässlich beantworten. {temporal_issue['reason']}{partial}",
+                "citations": [],
+                "context": "",
+            }
+
+        coherence_issue = check_structural_coherence(state["question"], resolver_result, state["reranked"])
+        if coherence_issue:
+            return {
+                "answer": f"Ich beantworte das lieber nicht direkt, weil die Belege bzw. Berechnung widersprüchlich sind: {coherence_issue['reason']}",
+                "citations": [],
+                "context": "",
+            }
+
         val = resolver_result.get("resolver_formatted") or str(resolver_result["resolver_value"])
         conf = resolver_result["resolver_confidence"]
         print(f"  🧮 Resolver: {val} ({conf})")
@@ -437,13 +597,16 @@ def generate(state: QueryState) -> dict:
 
         llm = get_llm()
         prompt = (
-            f"You are an assistant for tariff/HR documents (TV-L).\n"
+            f"You are an assistant for document-grounded question answering.\n"
             f"Answer EXCLUSIVELY in this language (ISO code): {lang}.\n\n"
             f"{resolver_prompt.format(lang=lang)}\n\n"
             f"Question: {state['question']}\n\n"
             f"Reminder: respond ONLY in {lang}. Use the computed result above as your answer."
         )
         answer = llm.invoke(prompt)
+        final_answer = answer.content
+        if assumptions:
+            final_answer = "\n".join([*assumptions, "", final_answer])
 
         citations = [
             {"chunk_id": c.chunk_id, "page_numbers": c.metadata["page_numbers"],
@@ -451,27 +614,44 @@ def generate(state: QueryState) -> dict:
              "bboxes": c.metadata.get("bboxes", [])}
             for c in state["reranked"][:5]
         ]
-        return {"answer": answer.content, "citations": citations, "context": val}
+        return {"answer": final_answer, "citations": citations, "context": val}
 
-    return _generate_impl(
+    generated = _generate_impl(
         state["question"], state["reranked"],
         lang=lang, step_results=state.get("step_results"), ctx=ctx,
     )
+    if assumptions:
+        generated["answer"] = "\n".join([*assumptions, "", generated["answer"]])
+    generated["response_source"] = "pipeline"
+    return generated
 
 
 # ── Graph ────────────────────────────────────────────────────────────────
 
 def build_query_graph():
     g = StateGraph(QueryState)
+    g.add_node("contextualize", contextualize)
+    g.add_node("cached_response", cached_response)
     g.add_node("transform_query", transform_query)
     g.add_node("retrieve_dense", retrieve_dense)
     g.add_node("retrieve_sparse", retrieve_sparse)
     g.add_node("retrieve_graph", retrieve_graph)
     g.add_node("rrf_fuse", rrf_fuse)
     g.add_node("rerank", rerank)
+    g.add_node("check_answerability", check_answerability)
+    g.add_node("gate_response", gate_response)
     g.add_node("generate", generate)
+    g.add_node("finalize_turn", finalize_turn)
 
-    g.add_edge(START, "transform_query")
+    g.add_edge(START, "contextualize")
+    g.add_conditional_edges(
+        "contextualize",
+        _route_after_contextualize,
+        {
+            "cached_response": "cached_response",
+            "transform_query": "transform_query",
+        },
+    )
     g.add_edge("transform_query", "retrieve_dense")
     g.add_edge("transform_query", "retrieve_sparse")
     g.add_edge("transform_query", "retrieve_graph")
@@ -479,7 +659,18 @@ def build_query_graph():
     g.add_edge("retrieve_sparse", "rrf_fuse")
     g.add_edge("retrieve_graph", "rrf_fuse")
     g.add_edge("rrf_fuse", "rerank")
-    g.add_edge("rerank", "generate")
-    g.add_edge("generate", END)
+    g.add_edge("rerank", "check_answerability")
+    g.add_conditional_edges(
+        "check_answerability",
+        _route_answerability,
+        {
+            "generate": "generate",
+            "gate_response": "gate_response",
+        },
+    )
+    g.add_edge("generate", "finalize_turn")
+    g.add_edge("gate_response", "finalize_turn")
+    g.add_edge("cached_response", "finalize_turn")
+    g.add_edge("finalize_turn", END)
 
-    return g.compile()
+    return g.compile(checkpointer=_checkpointer)
