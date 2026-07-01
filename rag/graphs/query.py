@@ -160,6 +160,13 @@ Context:
 Reminder: respond ONLY in {lang}."""
 
 
+HYDE_PROMPT = """\
+Write a short document passage in {lang} that would directly answer the following question.
+Use plausible domain language. Do NOT say you don't know.
+
+Question: {question}
+"""
+
 _EN_MARKERS = {"what", "how", "which", "does", "is", "are", "can", "do", "will",
                "who", "where", "when", "why", "could", "should", "would", "tell"}
 _DE_MARKERS = {"was", "wie", "welche", "welcher", "welches", "wer", "wo", "wann",
@@ -350,6 +357,31 @@ def rrf_fuse(state: QueryState) -> dict:
     n_sources = 2 + (1 if graph else 0)
     print(f"🔀 RRF fused ({n_sources} sources): {len(fused)} total → top {len(candidates)} to reranker")
     return {"fused": candidates}
+
+
+def maybe_hyde(state: QueryState) -> dict:
+    """Expand fused results with HyDE when retrieval confidence is low."""
+    if not settings.hyde_enabled:
+        return {}
+
+    fused = state.get("fused", [])
+    top_score = fused[0].score if fused else 0.0
+    if top_score >= settings.hyde_threshold:
+        return {}
+
+    print(f"🔮 HyDE triggered (top score {top_score:.3f} < {settings.hyde_threshold})")
+    llm = get_llm()
+    lang = state.get("lang", "de")
+    hyp = llm.invoke(HYDE_PROMPT.format(question=state["question"], lang=lang))
+
+    search = _get_search()
+    ctx = _make_ctx(state)
+    flt = _build_retrieval_filter(state)
+    hyde_hits = search.search_dense(hyp.content, flt=flt, ctx=ctx)
+
+    merged = SearchService.rrf([fused, hyde_hits], k=settings.rrf_k, ctx=ctx)
+    print(f"🔮 HyDE added {len(hyde_hits)} hits → merged to {len(merged)}")
+    return {"fused": merged[: settings.fusion_candidates]}
 
 
 @traced("rerank.cross_encoder")
@@ -640,6 +672,7 @@ def build_query_graph():
     g.add_node("retrieve_sparse", retrieve_sparse)
     g.add_node("retrieve_graph", retrieve_graph)
     g.add_node("rrf_fuse", rrf_fuse)
+    g.add_node("maybe_hyde", maybe_hyde)
     g.add_node("rerank", rerank)
     g.add_node("check_answerability", check_answerability)
     g.add_node("gate_response", gate_response)
@@ -661,7 +694,8 @@ def build_query_graph():
     g.add_edge("retrieve_dense", "rrf_fuse")
     g.add_edge("retrieve_sparse", "rrf_fuse")
     g.add_edge("retrieve_graph", "rrf_fuse")
-    g.add_edge("rrf_fuse", "rerank")
+    g.add_edge("rrf_fuse", "maybe_hyde")
+    g.add_edge("maybe_hyde", "rerank")
     g.add_edge("rerank", "check_answerability")
     g.add_conditional_edges(
         "check_answerability",
