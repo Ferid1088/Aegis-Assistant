@@ -43,5 +43,22 @@ class Settings(BaseSettings):
     # ACL seam — master switch; stays False until 05.1 enforces it.
     acl_enforce: bool = False
 
+    # Redis cache — off by default; set REDIS_URL=redis://localhost:6379 to enable
+    redis_url: str = ""
+    cache_ttl_transform: int = 3600    # 1 h
+    cache_ttl_embed: int = 86400       # 24 h
+    cache_ttl_answer: int = 900        # 15 min
+
+    # Version filter — activate AFTER re-indexing with is_current in payload
+    version_filter: bool = False
+
+    # HyDE
+    hyde_threshold: float = 0.3
+    hyde_enabled: bool = False
+
+    # Reranker tuning
+    reranker_use_fp16: bool = False
+    reranker_batch_size: int = 32
+
 
 settings = Settings()

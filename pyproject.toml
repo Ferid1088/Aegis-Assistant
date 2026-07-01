@@ -17,9 +17,11 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "qdrant-client>=1.18.0",
     "ragas==0.2.12",
+    "redis>=5.0",
 ]
 
 [dependency-groups]
 dev = [
+    "fakeredis>=2.0",
     "pytest>=9.1.1",
 ]
