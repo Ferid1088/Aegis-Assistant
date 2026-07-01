@@ -450,8 +450,9 @@ def finalize_turn(state: QueryState) -> dict:
                 _redis_key = normalized + "|" + _doc_filter_str
                 _hashed = _hashlib.sha256(_redis_key.encode()).hexdigest()
                 _r.setex(f"answer:{_hashed}", _s.cache_ttl_answer, _json.dumps(entry))
-        except Exception:
-            pass
+        except Exception as exc:
+            import logging as _logging
+            _logging.getLogger(__name__).warning("Redis answer write failed (%s) — skipping", exc)
 
     return {
         "turn_history": history,
