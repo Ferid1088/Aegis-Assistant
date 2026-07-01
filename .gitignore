@@ -1,8 +1,13 @@
 data/
 .env
 .venv/
-__pycache__/
+**/__pycache__/
 *.pyc
 .DS_Store
-docs
+docs/
 .worktrees/
+.pytest_cache/
+.superpowers/
+.claude/
+*.egg-info/
+.DS_Store
