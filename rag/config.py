@@ -60,5 +60,9 @@ class Settings(BaseSettings):
     reranker_use_fp16: bool = False
     reranker_batch_size: int = 32
 
+    # Asymmetric embedding prefixes (empty = no prefix, i.e. bge-m3 default)
+    dense_query_prefix: str = ""
+    dense_passage_prefix: str = ""   # applied to texts during ingestion for asymmetric models
+
 
 settings = Settings()

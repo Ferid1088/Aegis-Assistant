@@ -28,11 +28,16 @@ class SearchService:
         from rag.config import settings as _s
 
         model = _s.dense_embedding_model
+        prefix = _s.dense_query_prefix
         embedder = get_embedder()
         results = []
         for text in texts:
-            key = text + "|" + model
-            vec = cached("embed", key, _s.cache_ttl_embed, lambda t=text: [v.tolist() for v in embedder.embed([t])][0])
+            key = text + "|" + model + "|" + prefix
+            full_text = prefix + text if prefix else text
+            vec = cached(
+                "embed", key, _s.cache_ttl_embed,
+                lambda t=full_text: [v.tolist() for v in embedder.embed([t])][0],
+            )
             results.append(vec)
         return results
 

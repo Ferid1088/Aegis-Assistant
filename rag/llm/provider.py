@@ -26,7 +26,9 @@ class DenseEmbedder:
     def __init__(self, model_name: str) -> None:
         self._model = SentenceTransformer(model_name, device=get_device())
 
-    def embed(self, texts: list[str]) -> Generator[np.ndarray, None, None]:
+    def embed(self, texts: list[str], prefix: str = "") -> Generator[np.ndarray, None, None]:
+        if prefix:
+            texts = [prefix + t for t in texts]
         vectors = self._model.encode(texts, normalize_embeddings=True)
         yield from vectors
 

@@ -393,7 +393,7 @@ def chunk_and_index(state: IngestionState) -> dict:
             texts.append(chunk.text)
 
         if records:
-            dense_vecs = [v.tolist() for v in embedder.embed(texts)]
+            dense_vecs = [v.tolist() for v in embedder.embed(texts, prefix=settings.dense_passage_prefix)]
             sparse_vecs = [
                 {"indices": sv.indices.tolist(), "values": sv.values.tolist()}
                 for sv in sparse_embedder.embed(texts)
@@ -414,7 +414,7 @@ def chunk_and_index(state: IngestionState) -> dict:
     table_full_count = 0
     for batch in _batched(table_chunks, settings.chunk_batch_size):
         batch_texts = [c.content for c in batch]
-        dense_vecs = [v.tolist() for v in embedder.embed(batch_texts)]
+        dense_vecs = [v.tolist() for v in embedder.embed(batch_texts, prefix=settings.dense_passage_prefix)]
         sparse_vecs = [
             {"indices": sv.indices.tolist(), "values": sv.values.tolist()}
             for sv in sparse_embedder.embed(batch_texts)
