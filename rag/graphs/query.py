@@ -65,6 +65,8 @@ class QueryState(TypedDict):
     was_contextualized: NotRequired[bool]
     is_followup: NotRequired[bool]
     conversation_id: NotRequired[str]
+    conversation_state: NotRequired[str]
+    lifecycle_blocked: NotRequired[bool]
     response_source: NotRequired[str]
 
 
@@ -72,9 +74,28 @@ class QueryState(TypedDict):
 
 _search: SearchService | None = None
 _reranker: CrossEncoder | None = None
-_checkpointer = InMemorySaver()
 _MAX_TURNS = 8
 _MAX_CACHE_ENTRIES = 20
+
+
+def _make_checkpointer():
+    if settings.checkpoint_db_path:
+        try:
+            import sqlite3
+            from langgraph.checkpoint.sqlite import SqliteSaver
+            conn = sqlite3.connect(settings.checkpoint_db_path, check_same_thread=False)
+            saver = SqliteSaver(conn)
+            saver.setup()
+            return saver
+        except Exception as exc:
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "SQLite checkpointer failed (%s) — falling back to InMemorySaver", exc
+            )
+    return InMemorySaver()
+
+
+_checkpointer = _make_checkpointer()
 
 
 def _get_search() -> SearchService:
@@ -191,6 +212,7 @@ def _detect_lang_heuristic(question: str) -> str:
 
 def contextualize(state: QueryState) -> dict:
     import json as _json
+    import time as _time
     from rag.capabilities.cache import read_cache
 
     raw_question = state["question"]
@@ -199,8 +221,13 @@ def contextualize(state: QueryState) -> dict:
     standalone = result.standalone_question.strip() or raw_question
     normalized = normalize_question(standalone)
 
-    # L1: in-memory per-session cache
-    cached_mem = dict(state.get("repeat_cache", {})).get(normalized)
+    # L1: in-memory per-session cache (with TTL check)
+    cached_mem_raw = dict(state.get("repeat_cache", {})).get(normalized)
+    if cached_mem_raw:
+        age = _time.time() - cached_mem_raw.get("ts", 0)
+        if age > settings.cache_ttl_answer:
+            cached_mem_raw = None
+    cached_mem = {k: v for k, v in cached_mem_raw.items() if k != "ts"} if cached_mem_raw else None
 
     # L2: Redis cross-session answer cache (key includes doc_filter)
     cached_redis = None
@@ -457,6 +484,7 @@ def gate_response(state: QueryState) -> dict:
 def finalize_turn(state: QueryState) -> dict:
     import json as _json
     import hashlib as _hashlib
+    import time as _time
     from rag.config import settings as _s
 
     history = list(state.get("turn_history", []))
@@ -478,6 +506,7 @@ def finalize_turn(state: QueryState) -> dict:
             "answer": answer,
             "citations": state.get("citations", []),
             "context": state.get("context", ""),
+            "ts": _time.time(),
         }
         cache[normalized] = entry
         cache = _trim_cache(cache)
@@ -492,7 +521,8 @@ def finalize_turn(state: QueryState) -> dict:
                     _doc_filter_str = _json.dumps(state.get("doc_filter") or {}, sort_keys=True)
                     _redis_key = normalized + "|" + _doc_filter_str
                     _hashed = _hashlib.sha256(_redis_key.encode()).hexdigest()
-                    _r.setex(f"answer:{_hashed}", _s.cache_ttl_answer, _json.dumps(entry))
+                    _redis_entry = {k: v for k, v in entry.items() if k != "ts"}
+                    _r.setex(f"answer:{_hashed}", _s.cache_ttl_answer, _json.dumps(_redis_entry))
             except Exception as exc:
                 import logging as _logging
                 _logging.getLogger(__name__).warning("Redis answer write failed (%s) — skipping", exc)
@@ -670,10 +700,35 @@ def generate(state: QueryState) -> dict:
     return generated
 
 
+# ── Lifecycle gate ───────────────────────────────────────────────────────
+
+def lifecycle_gate(state: QueryState) -> dict:
+    from rag.crosscutting.security.authorize import _state_blocked_actions
+    conv_state = (state.get("conversation_state") or "active").lower()
+    blocked = "search" in _state_blocked_actions(conv_state)
+    return {"lifecycle_blocked": blocked}
+
+
+def _route_after_lifecycle(state: QueryState) -> str:
+    return "lifecycle_denied" if state.get("lifecycle_blocked") else "contextualize"
+
+
+def lifecycle_denied(state: QueryState) -> dict:
+    conv_state = (state.get("conversation_state") or "").lower()
+    _MSG = {
+        "soft_deleted": "Diese Konversation wurde gelöscht und ist für Abfragen gesperrt.",
+        "purged": "Diese Konversation wurde endgültig gelöscht.",
+    }
+    msg = _MSG.get(conv_state, f"Konversation nicht verfügbar (Status: {conv_state or 'unbekannt'}).")
+    return {"answer": msg, "citations": [], "context": "", "response_source": "lifecycle_blocked"}
+
+
 # ── Graph ────────────────────────────────────────────────────────────────
 
 def build_query_graph():
     g = StateGraph(QueryState)
+    g.add_node("lifecycle_gate", lifecycle_gate)
+    g.add_node("lifecycle_denied", lifecycle_denied)
     g.add_node("contextualize", contextualize)
     g.add_node("cached_response", cached_response)
     g.add_node("transform_query", transform_query)
@@ -688,7 +743,13 @@ def build_query_graph():
     g.add_node("generate", generate)
     g.add_node("finalize_turn", finalize_turn)
 
-    g.add_edge(START, "contextualize")
+    g.add_edge(START, "lifecycle_gate")
+    g.add_conditional_edges(
+        "lifecycle_gate",
+        _route_after_lifecycle,
+        {"contextualize": "contextualize", "lifecycle_denied": "lifecycle_denied"},
+    )
+    g.add_edge("lifecycle_denied", END)
     g.add_conditional_edges(
         "contextualize",
         _route_after_contextualize,

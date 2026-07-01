@@ -12,6 +12,17 @@ from dataclasses import dataclass
 import re
 from typing import Any
 
+_CONTEXT_REWRITE_PROMPT = """\
+Rewrite the follow-up question as a self-contained standalone question using the conversation history.
+Output ONLY the rewritten question — no explanation, no prefix, no quotes.
+
+Conversation history (most recent last):
+{history}
+
+Follow-up question: {question}
+
+Standalone question:"""
+
 _GRADE_RE = re.compile(r"\b(E\s?\d+|KR\s?\d+[a-zA-Z]?)\b", re.IGNORECASE)
 _YEARS_RE = re.compile(r"(\d+)\s*(?:Jahre|Jahren|years)\b", re.IGNORECASE)
 _STAGE_RE = re.compile(r"\bStufe\s*(\d+)\b", re.IGNORECASE)
@@ -20,6 +31,27 @@ _FOLLOWUP_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 _AMOUNT_RE = re.compile(r"\b(verdient|entgelt|gehalt|vergütung|salary|amount)\b", re.IGNORECASE)
+
+
+def _llm_rewrite(question: str, history: list[dict]) -> str:
+    from rag.llm.provider import get_llm
+    recent = history[-5:]
+    lines: list[str] = []
+    for t in recent:
+        uq = t.get("user_question") or t.get("standalone_question") or ""
+        ans = (t.get("answer") or "")[:300]
+        if uq:
+            lines.append(f"User: {uq}")
+        if ans:
+            lines.append(f"Assistant: {ans}")
+    history_text = "\n".join(lines)
+    try:
+        llm = get_llm()
+        response = llm.invoke(_CONTEXT_REWRITE_PROMPT.format(history=history_text, question=question))
+        rewritten = response.content.strip().strip('"\'')
+        return rewritten if rewritten else question
+    except Exception:
+        return question
 
 
 @dataclass
@@ -72,6 +104,13 @@ def contextualize_question(question: str, turn_history: list[dict[str, Any]] | N
 
     last_grade = _extract_last_grade(history)
     if not last_grade:
+        if history:
+            standalone = _llm_rewrite(stripped, history)
+            return ContextualizationResult(
+                standalone_question=standalone,
+                was_contextualized=standalone != stripped,
+                is_followup=True,
+            )
         return ContextualizationResult(standalone_question=question, was_contextualized=False, is_followup=True)
 
     years = _YEARS_RE.search(stripped)
@@ -91,9 +130,9 @@ def contextualize_question(question: str, turn_history: list[dict[str, Any]] | N
         standalone = f"Was verdient {last_grade} in Stufe {stage.group(1)}?"
         return ContextualizationResult(standalone_question=standalone, was_contextualized=True, is_followup=True)
 
-    followup_tail = re.sub(_FOLLOWUP_PREFIX_RE, "", stripped, count=1).strip(" ?")
-    if followup_tail:
-        standalone = f"{previous.rstrip('?')}, {followup_tail}?"
-    else:
-        standalone = previous
-    return ContextualizationResult(standalone_question=standalone, was_contextualized=True, is_followup=True)
+    standalone = _llm_rewrite(stripped, history)
+    return ContextualizationResult(
+        standalone_question=standalone,
+        was_contextualized=standalone != stripped,
+        is_followup=True,
+    )
