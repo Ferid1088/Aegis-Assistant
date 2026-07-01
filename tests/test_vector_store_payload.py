@@ -125,3 +125,42 @@ def test_upsert_includes_is_current(tmp_path):
         call_args = instance.upsert.call_args
         point = call_args[0][1][0]
         assert point.payload["is_current"] is False
+
+
+def test_version_filter_adds_is_current_to_retrieval_filter():
+    """_build_retrieval_filter adds is_current=True when version_filter=True."""
+    from unittest.mock import patch
+    from rag.graphs.query import _build_retrieval_filter
+
+    state = {
+        "doc_filter": None,
+        "user_levels": None,
+        "intended_types": None,
+        "tenant_id": "default",
+    }
+    with patch("rag.graphs.query.settings") as mock_s:
+        mock_s.version_filter = True
+        mock_s.acl_enforce = False
+        flt = _build_retrieval_filter(state)
+
+    assert flt is not None
+    assert flt.get("is_current") is True
+
+
+def test_version_filter_off_does_not_add_is_current():
+    """_build_retrieval_filter does NOT add is_current when version_filter=False."""
+    from unittest.mock import patch
+    from rag.graphs.query import _build_retrieval_filter
+
+    state = {
+        "doc_filter": None,
+        "user_levels": None,
+        "intended_types": None,
+        "tenant_id": "default",
+    }
+    with patch("rag.graphs.query.settings") as mock_s:
+        mock_s.version_filter = False
+        mock_s.acl_enforce = False
+        flt = _build_retrieval_filter(state)
+
+    assert flt is None or "is_current" not in (flt or {})
