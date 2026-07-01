@@ -484,7 +484,7 @@ def extract_graph_artifacts(state: IngestionState) -> dict:
         rule_chunks = build_rule_chunks(all_rules)
         if rule_chunks:
             rule_texts = [r.content for r in rule_chunks]
-            rule_dense = [v.tolist() for v in embedder.embed(rule_texts)]
+            rule_dense = [v.tolist() for v in embedder.embed(rule_texts, prefix=settings.dense_passage_prefix)]
             rule_sparse = [
                 {"indices": sv.indices.tolist(), "values": sv.values.tolist()}
                 for sv in sparse_embedder.embed(rule_texts)

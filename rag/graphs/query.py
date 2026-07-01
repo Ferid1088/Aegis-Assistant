@@ -90,7 +90,8 @@ def _get_reranker() -> CrossEncoder:
         dev = get_device()
         kwargs = {}
         if settings.reranker_use_fp16:
-            kwargs["use_half_precision"] = True
+            import torch
+            kwargs["model_kwargs"] = {"torch_dtype": torch.float16}
         _reranker = CrossEncoder(settings.reranker_model, device=dev, **kwargs)
     return _reranker
 
@@ -368,6 +369,9 @@ def maybe_hyde(state: QueryState) -> dict:
         return {}
 
     fused = state.get("fused", [])
+    # NOTE: fused[0].score is the original per-retriever score (dense cosine, sparse BM25,
+    # or hardcoded 0.5 for graph hits) — NOT a normalized RRF fused score.
+    # Hyde threshold tuning should account for this; dense results typically score 0.0-1.0.
     top_score = fused[0].score if fused else 0.0
     if top_score >= settings.hyde_threshold:
         return {}
@@ -479,17 +483,19 @@ def finalize_turn(state: QueryState) -> dict:
         cache = _trim_cache(cache)
 
         # L2: persist to Redis answer cache
-        try:
-            from rag.capabilities.cache import get_redis
-            _r = get_redis()
-            if _r is not None:
-                _doc_filter_str = _json.dumps(state.get("doc_filter") or {}, sort_keys=True)
-                _redis_key = normalized + "|" + _doc_filter_str
-                _hashed = _hashlib.sha256(_redis_key.encode()).hexdigest()
-                _r.setex(f"answer:{_hashed}", _s.cache_ttl_answer, _json.dumps(entry))
-        except Exception as exc:
-            import logging as _logging
-            _logging.getLogger(__name__).warning("Redis answer write failed (%s) — skipping", exc)
+        # Skip L2 cache write for gate refusals — don't cache "I can't answer" cross-session
+        if state.get("response_source") != "gate":
+            try:
+                from rag.capabilities.cache import get_redis
+                _r = get_redis()
+                if _r is not None:
+                    _doc_filter_str = _json.dumps(state.get("doc_filter") or {}, sort_keys=True)
+                    _redis_key = normalized + "|" + _doc_filter_str
+                    _hashed = _hashlib.sha256(_redis_key.encode()).hexdigest()
+                    _r.setex(f"answer:{_hashed}", _s.cache_ttl_answer, _json.dumps(entry))
+            except Exception as exc:
+                import logging as _logging
+                _logging.getLogger(__name__).warning("Redis answer write failed (%s) — skipping", exc)
 
     return {
         "turn_history": history,

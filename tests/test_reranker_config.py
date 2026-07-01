@@ -2,9 +2,9 @@ from unittest.mock import MagicMock, patch
 
 
 def test_get_reranker_passes_fp16_flag():
-    """_get_reranker passes use_half_precision when reranker_use_fp16=True."""
+    import torch
     import rag.graphs.query as q
-    q._reranker = None  # reset singleton
+    q._reranker = None
 
     with patch("rag.graphs.query.CrossEncoder") as MockCE, \
          patch("rag.graphs.query.settings") as mock_s, \
@@ -15,9 +15,9 @@ def test_get_reranker_passes_fp16_flag():
 
         q._get_reranker()
 
-        MockCE.assert_called_once_with(
-            "BAAI/bge-reranker-v2-m3", device="cpu", use_half_precision=True
-        )
+        call_kwargs = MockCE.call_args[1]
+        assert "model_kwargs" in call_kwargs
+        assert call_kwargs["model_kwargs"]["torch_dtype"] == torch.float16
     q._reranker = None
 
 
