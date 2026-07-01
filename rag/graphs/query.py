@@ -88,7 +88,10 @@ def _get_reranker() -> CrossEncoder:
     global _reranker
     if _reranker is None:
         dev = get_device()
-        _reranker = CrossEncoder(settings.reranker_model, device=dev)
+        kwargs = {}
+        if settings.reranker_use_fp16:
+            kwargs["use_half_precision"] = True
+        _reranker = CrossEncoder(settings.reranker_model, device=dev, **kwargs)
     return _reranker
 
 
@@ -390,7 +393,7 @@ def _rerank_impl(question: str, candidates: list[RetrievedChunk],
     if not candidates:
         return []
     pairs = [[question, c.content] for c in candidates]
-    scores = _get_reranker().predict(pairs)
+    scores = _get_reranker().predict(pairs, batch_size=settings.reranker_batch_size)
     reranked = [
         RetrievedChunk(chunk_id=c.chunk_id, content=c.content,
                        score=float(s), metadata=c.metadata)
