@@ -63,3 +63,31 @@ def logout(db: Session, session_id: str, actor_user: str, request_id: str = "") 
     )
     db.commit()
     record_session_revoked(actor_user, session_id, request_id=request_id)
+
+
+def revoke_all_sessions(db: Session, user_id: uuid.UUID, actor_user: str, request_id: str = "") -> int:
+    """Revokes every non-revoked session for a user, their refresh tokens, and bumps
+    token_version so any already-issued access token is invalidated too.
+    Returns the number of sessions revoked."""
+    now = datetime.now(timezone.utc)
+    sessions = db.execute(
+        select(UserSession).where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))
+    ).scalars().all()
+
+    for session in sessions:
+        session.revoked_at = now
+        db.execute(
+            RefreshToken.__table__.update()
+            .where(RefreshToken.session_id == session.id, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )
+
+    user = db.get(User, user_id)
+    if user is not None:
+        user.token_version += 1
+
+    db.commit()
+    for session in sessions:
+        record_session_revoked(actor_user, str(session.id), request_id=request_id)
+
+    return len(sessions)

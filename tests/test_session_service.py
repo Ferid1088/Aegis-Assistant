@@ -60,3 +60,24 @@ def test_logout_revokes_session_and_its_refresh_tokens(db_session):
 
     with pytest.raises(session_service.SessionError):
         session_service.refresh(db_session, result.refresh_token)
+
+
+def test_revoke_all_sessions_revokes_every_active_session_and_bumps_token_version(db_session):
+    user = User(username="multi-session-user", password_hash=hash_password("correct-horse-battery-staple"))
+    db_session.add(user)
+    db_session.commit()
+
+    result_a = local_auth.login(db_session, "multi-session-user", "correct-horse-battery-staple")
+    result_b = local_auth.login(db_session, "multi-session-user", "correct-horse-battery-staple")
+
+    original_token_version = user.token_version
+    count = session_service.revoke_all_sessions(db_session, user.id, "admin-actor")
+    assert count == 2
+
+    db_session.refresh(user)
+    assert user.token_version == original_token_version + 1
+
+    with pytest.raises(session_service.SessionError):
+        session_service.refresh(db_session, result_a.refresh_token)
+    with pytest.raises(session_service.SessionError):
+        session_service.refresh(db_session, result_b.refresh_token)

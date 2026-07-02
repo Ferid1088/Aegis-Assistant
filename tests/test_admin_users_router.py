@@ -180,3 +180,82 @@ def test_lock_unknown_user_404s(client, db_session):
 
     resp = client.post(f"/api/v1/admin/users/{fake_id}/lock", json={"reason": "x"}, headers=headers)
     assert resp.status_code == 404
+
+
+def test_list_sessions_returns_only_active_sessions(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post("/api/v1/admin/users", json={"username": "ivan"}, headers=headers)
+    user_id = uuid.UUID(resp.json()["id"])
+
+    active = UserSession(
+        user_id=user_id, issued_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ip="127.0.0.1", user_agent="pytest",
+    )
+    revoked = UserSession(
+        user_id=user_id, issued_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        revoked_at=datetime.now(timezone.utc),
+    )
+    db_session.add_all([active, revoked])
+    db_session.commit()
+
+    resp = client.get(f"/api/v1/admin/users/{user_id}/sessions", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["id"] == str(active.id)
+    assert body[0]["ip"] == "127.0.0.1"
+    assert body[0]["user_agent"] == "pytest"
+
+
+def test_list_sessions_unknown_user_404s(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+    fake_id = "00000000-0000-0000-0000-000000000000"
+
+    resp = client.get(f"/api/v1/admin/users/{fake_id}/sessions", headers=headers)
+    assert resp.status_code == 404
+
+
+def test_revoke_all_sessions_endpoint_bumps_token_version_and_revokes_sessions(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post("/api/v1/admin/users", json={"username": "judy"}, headers=headers)
+    user_id = uuid.UUID(resp.json()["id"])
+    target_user = db_session.get(User, user_id)
+    original_token_version = target_user.token_version
+
+    db_session.add_all([
+        UserSession(
+            user_id=user_id, issued_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ),
+        UserSession(
+            user_id=user_id, issued_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        ),
+    ])
+    db_session.commit()
+
+    resp = client.delete(f"/api/v1/admin/users/{user_id}/sessions", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json() == {"revoked_count": 2}
+
+    db_session.refresh(target_user)
+    assert target_user.token_version == original_token_version + 1
+
+    resp = client.get(f"/api/v1/admin/users/{user_id}/sessions", headers=headers)
+    assert resp.json() == []
+
+
+def test_revoke_all_sessions_unknown_user_404s(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+    fake_id = "00000000-0000-0000-0000-000000000000"
+
+    resp = client.delete(f"/api/v1/admin/users/{fake_id}/sessions", headers=headers)
+    assert resp.status_code == 404

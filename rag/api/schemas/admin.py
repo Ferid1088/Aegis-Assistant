@@ -76,3 +76,11 @@ class UserRoleAssign(BaseModel):
 
 class UserLockRequest(BaseModel):
     reason: str
+
+
+class SessionResponse(BaseModel):
+    id: str
+    issued_at: str
+    expires_at: str
+    ip: str | None
+    user_agent: str | None

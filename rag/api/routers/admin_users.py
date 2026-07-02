@@ -7,11 +7,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, require_permission
-from rag.api.schemas.admin import UserCreate, UserLockRequest, UserResponse, UserRoleAssign, UserUpdate
+from rag.api.schemas.admin import (
+    SessionResponse, UserCreate, UserLockRequest, UserResponse, UserRoleAssign, UserUpdate,
+)
+from rag.crosscutting.security import session_service
 from rag.crosscutting.security.audit_events import record_admin_change
 from rag.crosscutting.security.password import hash_password
 from rag.storage.sql.base import get_db
-from rag.storage.sql.models import Department, Role, User, UserRole
+from rag.storage.sql.models import Department, Role, User, UserRole, UserSession
 
 router = APIRouter()
 
@@ -187,3 +190,38 @@ def unlock_user(
     user.failed_login_count = 0
     db.commit()
     record_admin_change(str(current.user.id), "user_unlocked", f"user:{user_id}")
+
+
+@router.get("/users/{user_id}/sessions", response_model=list[SessionResponse])
+def list_sessions(
+    user_id: uuid.UUID,
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> list[SessionResponse]:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    sessions = db.execute(
+        select(UserSession).where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))
+    ).scalars().all()
+    return [
+        SessionResponse(
+            id=str(s.id), issued_at=s.issued_at.isoformat(), expires_at=s.expires_at.isoformat(),
+            ip=s.ip, user_agent=s.user_agent,
+        )
+        for s in sessions
+    ]
+
+
+@router.delete("/users/{user_id}/sessions", status_code=200)
+def revoke_all_user_sessions(
+    user_id: uuid.UUID,
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> dict:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    count = session_service.revoke_all_sessions(db, user_id, str(current.user.id))
+    record_admin_change(str(current.user.id), "user_sessions_revoked", f"user:{user_id}", new_value={"count": count})
+    return {"revoked_count": count}
