@@ -10,6 +10,7 @@ from rag.crosscutting.security import audit_events
 from rag.crosscutting.security.lockout import apply_failed_attempt, is_locked
 from rag.crosscutting.security.mfa import decrypt_secret, verify_totp
 from rag.crosscutting.security.password import verify_password
+from rag.crosscutting.security.time_utils import as_aware_utc
 from rag.crosscutting.security.tokens import create_access_token, create_mfa_pending_token, decode_token, generate_refresh_token
 from rag.storage.sql.models import LoginAttempt, RefreshToken, User, UserSession
 
@@ -34,7 +35,7 @@ def login(db: Session, username: str, password: str, ip: str = "", request_id: s
         audit_events.record_login_failure(username, request_id=request_id, ip=ip)
         raise AuthError("invalid username or password")
 
-    if is_locked(_as_aware_utc(user.locked_until)):
+    if is_locked(as_aware_utc(user.locked_until)):
         _record_attempt(db, user.id, username, False, ip)
         raise AuthError(f"account locked: {user.lock_reason}")
 
@@ -73,15 +74,6 @@ def verify_mfa(db: Session, mfa_pending_token: str, totp_code: str, ip: str = ""
         raise AuthError("invalid MFA code")
 
     return _issue_tokens(db, user, ip)
-
-
-def _as_aware_utc(value: datetime | None) -> datetime | None:
-    """SQLite drops tzinfo on round-trip even for DateTime(timezone=True) columns,
-    so a value read back from the DB can be naive while values we just constructed
-    in-process are aware. Normalize to aware UTC before comparing."""
-    if value is None or value.tzinfo is not None:
-        return value
-    return value.replace(tzinfo=timezone.utc)
 
 
 def _record_attempt(db: Session, user_id: uuid.UUID | None, username: str, success: bool, ip: str) -> None:
