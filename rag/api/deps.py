@@ -1,0 +1,50 @@
+import uuid
+from dataclasses import dataclass
+
+import jwt
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from rag.crosscutting.security.authorize import AuthSubject
+from rag.crosscutting.security.rbac_resolver import resolve_auth_subject
+from rag.crosscutting.security.tokens import decode_token
+from rag.storage.sql.base import get_db
+from rag.storage.sql.models import User, UserSession
+
+
+@dataclass
+class AuthenticatedUser:
+    user: User
+    session_id: uuid.UUID
+    auth_subject: AuthSubject
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> AuthenticatedUser:
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="missing bearer token")
+    token = auth_header.removeprefix("Bearer ")
+
+    try:
+        payload = decode_token(token)
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail="invalid or expired token") from exc
+
+    if payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="invalid token type")
+
+    user = db.execute(select(User).where(User.id == uuid.UUID(payload["sub"]))).scalar_one_or_none()
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="account inactive")
+
+    if payload.get("tv") != user.token_version:
+        raise HTTPException(status_code=401, detail="token has been invalidated")
+
+    session_id = uuid.UUID(payload["session_id"])
+    session = db.execute(select(UserSession).where(UserSession.id == session_id)).scalar_one_or_none()
+    if session is None or session.revoked_at is not None:
+        raise HTTPException(status_code=401, detail="session revoked")
+
+    auth_subject = resolve_auth_subject(db, user)
+    return AuthenticatedUser(user=user, session_id=session_id, auth_subject=auth_subject)
