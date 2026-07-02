@@ -72,3 +72,7 @@ class UserUpdate(BaseModel):
 
 class UserRoleAssign(BaseModel):
     role_id: str
+
+
+class UserLockRequest(BaseModel):
+    reason: str

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import pytest
 from fastapi import FastAPI
@@ -146,4 +147,36 @@ def test_assign_unknown_role_404s(client, db_session):
     user_id = resp.json()["id"]
 
     resp = client.post(f"/api/v1/admin/users/{user_id}/roles", json={"role_id": fake_id}, headers=headers)
+    assert resp.status_code == 404
+
+
+def test_lock_and_unlock_user(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post("/api/v1/admin/users", json={"username": "heidi"}, headers=headers)
+    user_id = resp.json()["id"]
+
+    resp = client.post(f"/api/v1/admin/users/{user_id}/lock", json={"reason": "suspected compromise"}, headers=headers)
+    assert resp.status_code == 204
+
+    locked_user = db_session.get(User, uuid.UUID(user_id))
+    assert locked_user.locked_until is not None
+    assert locked_user.lock_reason == "suspected compromise"
+
+    resp = client.post(f"/api/v1/admin/users/{user_id}/unlock", headers=headers)
+    assert resp.status_code == 204
+
+    db_session.refresh(locked_user)
+    assert locked_user.locked_until is None
+    assert locked_user.lock_reason is None
+    assert locked_user.failed_login_count == 0
+
+
+def test_lock_unknown_user_404s(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+    fake_id = "00000000-0000-0000-0000-000000000000"
+
+    resp = client.post(f"/api/v1/admin/users/{fake_id}/lock", json={"reason": "x"}, headers=headers)
     assert resp.status_code == 404

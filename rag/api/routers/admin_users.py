@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -6,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, require_permission
-from rag.api.schemas.admin import UserCreate, UserResponse, UserRoleAssign, UserUpdate
+from rag.api.schemas.admin import UserCreate, UserLockRequest, UserResponse, UserRoleAssign, UserUpdate
 from rag.crosscutting.security.audit_events import record_admin_change
 from rag.crosscutting.security.password import hash_password
 from rag.storage.sql.base import get_db
@@ -151,3 +152,38 @@ def remove_role(
     db.delete(ur)
     db.commit()
     record_admin_change(str(current.user.id), "user_role_removed", f"user:{user_id}", prev_value={"role_id": str(role_id)})
+
+
+_INDEFINITE_LOCK = datetime(9999, 12, 31, tzinfo=timezone.utc)
+
+
+@router.post("/users/{user_id}/lock", status_code=204)
+def lock_user(
+    user_id: uuid.UUID,
+    body: UserLockRequest,
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> None:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    user.locked_until = _INDEFINITE_LOCK
+    user.lock_reason = body.reason
+    db.commit()
+    record_admin_change(str(current.user.id), "user_locked", f"user:{user_id}", new_value={"reason": body.reason})
+
+
+@router.post("/users/{user_id}/unlock", status_code=204)
+def unlock_user(
+    user_id: uuid.UUID,
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> None:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    user.locked_until = None
+    user.lock_reason = None
+    user.failed_login_count = 0
+    db.commit()
+    record_admin_change(str(current.user.id), "user_unlocked", f"user:{user_id}")
