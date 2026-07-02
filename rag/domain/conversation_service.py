@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from rag.domain.conversation import ConversationState
+from rag.domain.conversation import Conversation as DomainConversation, ConversationState, transition as domain_transition
 from rag.storage.sql.models import Conversation
 
 
@@ -34,3 +34,30 @@ def get_owned_conversation(db: Session, conversation_id: uuid.UUID, owner_id: uu
 
 def list_owned_conversations(db: Session, owner_id: uuid.UUID) -> list[Conversation]:
     return list(db.execute(select(Conversation).where(Conversation.owner_id == owner_id)).scalars().all())
+
+
+class TransitionError(Exception):
+    pass
+
+
+def _to_domain(conv: Conversation) -> DomainConversation:
+    return DomainConversation(
+        conversation_id=str(conv.id),
+        owner_id=str(conv.owner_id),
+        state=ConversationState(conv.state),
+        legal_hold=conv.legal_hold,
+        erasure_requested=conv.erasure_requested,
+        retention_days=conv.retention_days,
+        encryption_key_id=conv.encryption_key_id,
+    )
+
+
+def transition_conversation(db: Session, conv: Conversation, target_state: ConversationState) -> Conversation:
+    domain_conv = _to_domain(conv)
+    success, reason = domain_transition(domain_conv, target_state)
+    if not success:
+        raise TransitionError(reason)
+
+    conv.state = domain_conv.state.value
+    db.commit()
+    return conv

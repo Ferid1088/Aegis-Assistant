@@ -3,6 +3,7 @@ import uuid
 import pytest
 
 from rag.domain import conversation_service
+from rag.domain.conversation import ConversationState
 from rag.storage.sql.models import Conversation, User
 
 
@@ -68,3 +69,34 @@ def test_list_owned_conversations_returns_only_owners(db_session):
 
     assert len(owned) == 2
     assert all(c.owner_id == owner.id for c in owned)
+
+
+def test_transition_conversation_to_valid_state_succeeds(db_session):
+    owner = _make_user(db_session)
+    conv = conversation_service.create_conversation(db_session, owner.id)
+
+    updated = conversation_service.transition_conversation(db_session, conv, ConversationState.ARCHIVED)
+
+    assert updated.state == "archived"
+
+
+def test_transition_conversation_to_invalid_state_raises(db_session):
+    owner = _make_user(db_session)
+    conv = conversation_service.create_conversation(db_session, owner.id)
+    conversation_service.transition_conversation(db_session, conv, ConversationState.SOFT_DELETED)
+    conversation_service.transition_conversation(db_session, conv, ConversationState.PURGED)
+    # PURGED is terminal — no transitions allowed out of it, not even back to ACTIVE
+
+    with pytest.raises(conversation_service.TransitionError):
+        conversation_service.transition_conversation(db_session, conv, ConversationState.ACTIVE)
+
+
+def test_transition_to_purged_blocked_by_legal_hold(db_session):
+    owner = _make_user(db_session)
+    conv = conversation_service.create_conversation(db_session, owner.id)
+    conversation_service.transition_conversation(db_session, conv, ConversationState.SOFT_DELETED)
+    conv.legal_hold = True
+    db_session.commit()
+
+    with pytest.raises(conversation_service.TransitionError):
+        conversation_service.transition_conversation(db_session, conv, ConversationState.PURGED)
