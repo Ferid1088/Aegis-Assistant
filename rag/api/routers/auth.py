@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user
@@ -29,6 +29,8 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -
 
 @router.post("/mfa/enroll", response_model=MfaEnrollResponse)
 def mfa_enroll(current: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)) -> MfaEnrollResponse:
+    if current.user.mfa_enabled:
+        raise HTTPException(status_code=409, detail="MFA is already enabled for this account")
     raw_secret = generate_totp_secret()
     current.user.mfa_secret_encrypted = encrypt_secret(raw_secret)
     current.user.mfa_enabled = True
@@ -59,7 +61,7 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)) -> RefreshRespo
 
 
 @router.post("/logout", status_code=204)
-def logout(response: Response, current: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)) -> None:
+def logout(current: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)) -> None:
     session_service.logout(db, str(current.session_id), str(current.user.id))
 
 

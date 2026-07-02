@@ -84,3 +84,14 @@ def test_full_login_mfa_refresh_logout_cycle(client):
 
     me_after = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {new_access}"})
     assert me_after.status_code == 401
+
+
+def test_mfa_enroll_twice_returns_409(client):
+    login = client.post("/api/v1/auth/login", json={"username": "alice", "password": "correct-horse-battery-staple"})
+    access = login.json()["access_token"]
+
+    first = client.post("/api/v1/auth/mfa/enroll", headers={"Authorization": f"Bearer {access}"})
+    assert first.status_code == 200
+
+    second = client.post("/api/v1/auth/mfa/enroll", headers={"Authorization": f"Bearer {access}"})
+    assert second.status_code == 409
