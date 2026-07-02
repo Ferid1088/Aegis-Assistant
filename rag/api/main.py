@@ -1,10 +1,11 @@
 import uuid
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from rag.api.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
+from rag.api.routers import auth as auth_router
 
 
 def create_app() -> FastAPI:
@@ -21,9 +22,6 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
-    @app.get("/api/v1/auth/me")
-    def _me_placeholder():
-        # Replaced by the real /api/v1/auth/me route in Task 17.
-        raise HTTPException(status_code=401, detail="missing bearer token")
+    app.include_router(auth_router.router, prefix="/api/v1/auth", tags=["auth"])
 
     return app

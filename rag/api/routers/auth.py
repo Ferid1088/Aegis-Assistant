@@ -1,0 +1,71 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from sqlalchemy.orm import Session
+
+from rag.api.deps import AuthenticatedUser, get_current_user
+from rag.api.schemas.auth import (
+    LoginRequest, LoginResponse, MeResponse, MfaEnrollResponse, MfaVerifyRequest,
+    RefreshRequest, RefreshResponse,
+)
+from rag.crosscutting.security import local_auth, session_service
+from rag.crosscutting.security.audit_events import record_mfa_enrolled
+from rag.crosscutting.security.mfa import encrypt_secret, generate_totp_secret, totp_uri
+from rag.storage.sql.base import get_db
+
+router = APIRouter()
+
+
+@router.post("/login", response_model=LoginResponse)
+def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
+    try:
+        result = local_auth.login(
+            db, body.username, body.password,
+            ip=request.client.host if request.client else "",
+            request_id=getattr(request.state, "request_id", ""),
+        )
+    except local_auth.AuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return LoginResponse(**result.__dict__)
+
+
+@router.post("/mfa/enroll", response_model=MfaEnrollResponse)
+def mfa_enroll(current: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)) -> MfaEnrollResponse:
+    raw_secret = generate_totp_secret()
+    current.user.mfa_secret_encrypted = encrypt_secret(raw_secret)
+    current.user.mfa_enabled = True
+    db.commit()
+    record_mfa_enrolled(str(current.user.id))
+    return MfaEnrollResponse(secret=raw_secret, provisioning_uri=totp_uri(raw_secret, current.user.username))
+
+
+@router.post("/mfa/verify", response_model=LoginResponse)
+def mfa_verify(body: MfaVerifyRequest, request: Request, db: Session = Depends(get_db)) -> LoginResponse:
+    try:
+        result = local_auth.verify_mfa(
+            db, body.mfa_pending_token, body.totp_code,
+            ip=request.client.host if request.client else "",
+        )
+    except local_auth.AuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return LoginResponse(**result.__dict__)
+
+
+@router.post("/refresh", response_model=RefreshResponse)
+def refresh(body: RefreshRequest, db: Session = Depends(get_db)) -> RefreshResponse:
+    try:
+        access, new_refresh = session_service.refresh(db, body.refresh_token)
+    except session_service.SessionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return RefreshResponse(access_token=access, refresh_token=new_refresh)
+
+
+@router.post("/logout", status_code=204)
+def logout(response: Response, current: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db)) -> None:
+    session_service.logout(db, str(current.session_id), str(current.user.id))
+
+
+@router.get("/me", response_model=MeResponse)
+def me(current: AuthenticatedUser = Depends(get_current_user)) -> MeResponse:
+    return MeResponse(
+        id=str(current.user.id), username=current.user.username,
+        roles=current.auth_subject.roles, effective_levels=current.auth_subject.effective_levels,
+    )
