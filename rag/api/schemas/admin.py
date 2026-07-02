@@ -20,3 +20,20 @@ class AccessLevelResponse(BaseModel):
     department_id: str
     label: str
     rank: int
+
+
+class RoleCreate(BaseModel):
+    name: str
+
+
+class RoleResponse(BaseModel):
+    id: str
+    name: str
+
+
+class RoleGrantCreate(BaseModel):
+    access_level_id: str
+
+
+class RolePermissionCreate(BaseModel):
+    permission: str

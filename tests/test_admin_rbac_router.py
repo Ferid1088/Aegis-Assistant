@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -12,7 +13,7 @@ from rag.storage.sql.models import Role, RolePermission, User, UserRole, UserSes
 
 
 def _make_admin_user(db_session, permission="admin:departments"):
-    user = User(username="admin", password_hash=hash_password("adminpass123"))
+    user = User(username=f"admin-{uuid.uuid4().hex[:8]}", password_hash=hash_password("adminpass123"))
     db_session.add(user)
     db_session.flush()
     role = Role(name=f"role-{permission}")
@@ -109,3 +110,67 @@ def test_create_access_level_for_unknown_department_404s(client, db_session):
         f"/api/v1/admin/departments/{fake_id}/access-levels", json={"label": "X", "rank": 1}, headers=headers,
     )
     assert resp.status_code == 404
+
+
+def test_create_and_list_roles(client, db_session):
+    _, token = _make_admin_user(db_session, permission="admin:roles")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post("/api/v1/admin/roles", json={"name": "hr_analyst"}, headers=headers)
+    assert resp.status_code == 201
+    role_id = resp.json()["id"]
+
+    resp = client.get("/api/v1/admin/roles", headers=headers)
+    assert any(r["id"] == role_id for r in resp.json())
+
+
+def test_delete_role(client, db_session):
+    _, token = _make_admin_user(db_session, permission="admin:roles")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post("/api/v1/admin/roles", json={"name": "temp_role"}, headers=headers)
+    role_id = resp.json()["id"]
+
+    resp = client.delete(f"/api/v1/admin/roles/{role_id}", headers=headers)
+    assert resp.status_code == 204
+
+
+def test_grant_and_revoke_access_level(client, db_session):
+    _, token = _make_admin_user(db_session, permission="admin:roles")
+    headers = {"Authorization": f"Bearer {token}"}
+    _, dept_token = _make_admin_user(db_session, permission="admin:departments")
+    dept_headers = {"Authorization": f"Bearer {dept_token}"}
+
+    dept = client.post("/api/v1/admin/departments", json={"name": "HR"}, headers=dept_headers).json()
+    level = client.post(
+        f"/api/v1/admin/departments/{dept['id']}/access-levels", json={"label": "HR_L1", "rank": 1}, headers=dept_headers,
+    ).json()
+    role = client.post("/api/v1/admin/roles", json={"name": "hr_role"}, headers=headers).json()
+
+    resp = client.post(f"/api/v1/admin/roles/{role['id']}/grants", json={"access_level_id": level["id"]}, headers=headers)
+    assert resp.status_code == 201
+
+    resp = client.post(f"/api/v1/admin/roles/{role['id']}/grants", json={"access_level_id": level["id"]}, headers=headers)
+    assert resp.status_code == 409
+
+    resp = client.delete(f"/api/v1/admin/roles/{role['id']}/grants/{level['id']}", headers=headers)
+    assert resp.status_code == 204
+
+    resp = client.delete(f"/api/v1/admin/roles/{role['id']}/grants/{level['id']}", headers=headers)
+    assert resp.status_code == 404
+
+
+def test_grant_and_revoke_permission(client, db_session):
+    _, token = _make_admin_user(db_session, permission="admin:roles")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    role = client.post("/api/v1/admin/roles", json={"name": "perm_role"}, headers=headers).json()
+
+    resp = client.post(f"/api/v1/admin/roles/{role['id']}/permissions", json={"permission": "admin:users"}, headers=headers)
+    assert resp.status_code == 201
+
+    resp = client.post(f"/api/v1/admin/roles/{role['id']}/permissions", json={"permission": "admin:users"}, headers=headers)
+    assert resp.status_code == 409
+
+    resp = client.delete(f"/api/v1/admin/roles/{role['id']}/permissions/admin:users", headers=headers)
+    assert resp.status_code == 204
