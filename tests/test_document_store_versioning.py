@@ -157,3 +157,25 @@ def test_existing_register_exists_mark_superseded_unaffected():
     finally:
         store.conn.close()
         os.unlink(db_path)
+
+
+def test_list_logical_documents_returns_all(tmp_path):
+    store, db_path = _store()
+    try:
+        store.create_logical_document(LogicalDocument(logical_doc_id="d1", source_identity="filesystem:/a.pdf"))
+        store.create_logical_document(LogicalDocument(logical_doc_id="d2", source_identity="filesystem:/b.pdf"))
+
+        docs = store.list_logical_documents()
+        assert {d.logical_doc_id for d in docs} == {"d1", "d2"}
+    finally:
+        store.conn.close()
+        os.unlink(db_path)
+
+
+def test_list_logical_documents_empty(tmp_path):
+    store, db_path = _store()
+    try:
+        assert store.list_logical_documents() == []
+    finally:
+        store.conn.close()
+        os.unlink(db_path)

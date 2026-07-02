@@ -169,6 +169,27 @@ class SQLiteDocumentStore(DocumentStore):
             state=LogicalDocumentState(row["state"]),
         )
 
+    def list_logical_documents(self) -> list[LogicalDocument]:
+        rows = self.conn.execute(
+            """SELECT logical_doc_id, source_identity, tenant_id, department, access_level,
+                      document_type, project_id, phase_id, state
+               FROM logical_documents ORDER BY logical_doc_id"""
+        ).fetchall()
+        return [
+            LogicalDocument(
+                logical_doc_id=row["logical_doc_id"],
+                source_identity=row["source_identity"],
+                tenant_id=row["tenant_id"],
+                department=row["department"],
+                access_level=json.loads(row["access_level"]),
+                document_type=row["document_type"],
+                project_id=row["project_id"],
+                phase_id=row["phase_id"],
+                state=LogicalDocumentState(row["state"]),
+            )
+            for row in rows
+        ]
+
     def create_version(
         self, logical_doc_id: str, content_hash: str, filename: str, num_pages: int = 0,
         max_retries: int = 5,
