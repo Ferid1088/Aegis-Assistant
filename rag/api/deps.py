@@ -58,3 +58,11 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Authent
 
     auth_subject = resolve_auth_subject(db, user)
     return AuthenticatedUser(user=user, session_id=session_id, auth_subject=auth_subject)
+
+
+def require_permission(permission: str):
+    def _check(current: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
+        if permission not in current.auth_subject.permissions:
+            raise HTTPException(status_code=403, detail=f"missing permission: {permission}")
+        return current
+    return _check
