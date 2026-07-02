@@ -2,9 +2,10 @@ from datetime import datetime, timedelta, timezone
 import uuid
 
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
+from rag.api.deps import get_current_user
 from rag.api.routers import admin_users
 from rag.crosscutting.security.password import hash_password
 from rag.crosscutting.security.tokens import create_access_token
@@ -259,3 +260,47 @@ def test_revoke_all_sessions_unknown_user_404s(client, db_session):
 
     resp = client.delete(f"/api/v1/admin/users/{fake_id}/sessions", headers=headers)
     assert resp.status_code == 404
+
+
+def test_revoke_all_sessions_invalidates_a_live_access_token(client, db_session):
+    admin_user, admin_token = _make_admin_user(db_session)
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # Create a non-admin target user and mint a real access token for them,
+    # the same way _make_admin_user does but without granting any permission.
+    target = User(username="kevin", password_hash=hash_password("targetpass123"))
+    db_session.add(target)
+    db_session.flush()
+    target_session = UserSession(
+        user_id=target.id, issued_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    db_session.add(target_session)
+    db_session.commit()
+    target_token = create_access_token(str(target.id), str(target_session.id), target.token_version)
+
+    # Build an isolated app with a protected route depending on get_current_user,
+    # following the same pattern used in tests/test_api_deps.py, but backed by
+    # the same db_session used by the `client` fixture so state is shared.
+    protected_app = FastAPI()
+    protected_app.dependency_overrides[get_db] = lambda: db_session
+
+    @protected_app.get("/protected")
+    def protected_route(current=Depends(get_current_user)):
+        return {"username": current.user.username}
+
+    protected_client = TestClient(protected_app, raise_server_exceptions=False)
+    target_headers = {"Authorization": f"Bearer {target_token}"}
+
+    # Sanity check: the token currently works.
+    resp = protected_client.get("/protected", headers=target_headers)
+    assert resp.status_code == 200
+    assert resp.json()["username"] == "kevin"
+
+    # Revoke all of the target's sessions via the admin endpoint.
+    resp = client.delete(f"/api/v1/admin/users/{target.id}/sessions", headers=admin_headers)
+    assert resp.status_code == 200
+
+    # The same, previously-valid access token must now be rejected.
+    resp = protected_client.get("/protected", headers=target_headers)
+    assert resp.status_code == 401
