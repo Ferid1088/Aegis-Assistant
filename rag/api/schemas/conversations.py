@@ -18,3 +18,7 @@ class TransitionRequest(BaseModel):
 class ErasureResponse(BaseModel):
     action: str
     reason: str
+
+
+class LegalHoldRequest(BaseModel):
+    hold: bool

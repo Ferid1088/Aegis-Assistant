@@ -3,8 +3,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from rag.api.deps import AuthenticatedUser, get_current_user
-from rag.api.schemas.conversations import ConversationResponse, ErasureResponse, TransitionRequest
+from rag.api.deps import AuthenticatedUser, get_current_user, require_permission
+from rag.api.schemas.conversations import ConversationResponse, ErasureResponse, LegalHoldRequest, TransitionRequest
+from rag.crosscutting.security.audit_events import record_admin_change
 from rag.domain import conversation_service
 from rag.domain.conversation import ConversationState
 from rag.storage.sql.base import get_db
@@ -90,3 +91,23 @@ def erasure_request(
 
     action, reason = conversation_service.request_erasure(db, conv)
     return ErasureResponse(action=action, reason=reason)
+
+
+@router.post("/{conversation_id}/legal-hold", response_model=ConversationResponse)
+def legal_hold(
+    conversation_id: uuid.UUID,
+    body: LegalHoldRequest,
+    current: AuthenticatedUser = Depends(require_permission("admin:conversations")),
+    db: Session = Depends(get_db),
+) -> ConversationResponse:
+    try:
+        conv = conversation_service.get_conversation(db, conversation_id)
+    except conversation_service.ConversationNotFound as exc:
+        raise HTTPException(status_code=404, detail="conversation not found") from exc
+
+    conv = conversation_service.set_legal_hold(db, conv, body.hold)
+    record_admin_change(
+        str(current.user.id), "conversation_legal_hold_set", f"conversation:{conversation_id}",
+        new_value={"legal_hold": body.hold},
+    )
+    return _to_response(conv)

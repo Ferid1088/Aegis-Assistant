@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from rag.api.routers import conversations
 from rag.crosscutting.security.tokens import create_access_token
 from rag.storage.sql.base import get_db
-from rag.storage.sql.models import User, UserSession
+from rag.storage.sql.models import Role, RolePermission, User, UserRole, UserSession
 
 
 def _make_user_with_token(db_session, username):
@@ -116,3 +116,57 @@ def test_erasure_request_purges(client, db_session):
 def test_endpoints_require_authentication(client, db_session):
     resp = client.get("/api/v1/conversations")
     assert resp.status_code == 401
+
+
+def _make_admin_with_token(db_session, permission="admin:conversations"):
+    admin, token = _make_user_with_token(db_session, "admin")
+    role = Role(name=f"role-{permission}")
+    db_session.add(role)
+    db_session.flush()
+    db_session.add(RolePermission(role_id=role.id, permission=permission))
+    db_session.add(UserRole(user_id=admin.id, role_id=role.id))
+    db_session.commit()
+    return admin, token
+
+
+def test_admin_can_set_legal_hold_on_any_conversation(client, db_session):
+    _, owner_token = _make_user_with_token(db_session, "alice")
+    _, admin_token = _make_admin_with_token(db_session)
+    conv_id = client.post("/api/v1/conversations", headers={"Authorization": f"Bearer {owner_token}"}).json()["id"]
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/legal-hold", json={"hold": True},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["legal_hold"] is True
+
+
+def test_owner_without_admin_permission_cannot_set_legal_hold(client, db_session):
+    _, owner_token = _make_user_with_token(db_session, "alice")
+    conv_id = client.post("/api/v1/conversations", headers={"Authorization": f"Bearer {owner_token}"}).json()["id"]
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/legal-hold", json={"hold": True},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_legal_hold_blocks_owners_own_erasure_request(client, db_session):
+    _, owner_token = _make_user_with_token(db_session, "alice")
+    _, admin_token = _make_admin_with_token(db_session)
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+    conv_id = client.post("/api/v1/conversations", headers=owner_headers).json()["id"]
+
+    client.post(
+        f"/api/v1/conversations/{conv_id}/legal-hold", json={"hold": True},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    resp = client.post(f"/api/v1/conversations/{conv_id}/erasure-request", headers=owner_headers)
+    assert resp.status_code == 200
+    assert resp.json()["action"] == "refuse"
+
+    check = client.get(f"/api/v1/conversations/{conv_id}", headers=owner_headers)
+    assert check.json()["state"] == "active"
