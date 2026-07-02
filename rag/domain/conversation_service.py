@@ -3,7 +3,9 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from rag.domain.conversation import Conversation as DomainConversation, ConversationState, transition as domain_transition
+from rag.domain.conversation import (
+    Conversation as DomainConversation, ConversationState, resolve_erasure, transition as domain_transition,
+)
 from rag.storage.sql.models import Conversation
 
 
@@ -61,3 +63,27 @@ def transition_conversation(db: Session, conv: Conversation, target_state: Conve
     conv.state = domain_conv.state.value
     db.commit()
     return conv
+
+
+def set_legal_hold(db: Session, conv: Conversation, hold: bool) -> Conversation:
+    conv.legal_hold = hold
+    db.commit()
+    return conv
+
+
+def request_erasure(db: Session, conv: Conversation) -> tuple[str, str]:
+    conv.erasure_requested = True
+    db.commit()
+
+    domain_conv = _to_domain(conv)
+    action, reason = resolve_erasure(domain_conv)
+
+    if action == "purge":
+        # No message/chat content exists yet in this codebase to actually crypto-shred;
+        # clearing encryption_key_id is a placeholder for real key destruction once
+        # conversation content is built (out of scope for this plan).
+        conv.state = ConversationState.PURGED.value
+        conv.encryption_key_id = None
+        db.commit()
+
+    return action, reason

@@ -100,3 +100,40 @@ def test_transition_to_purged_blocked_by_legal_hold(db_session):
 
     with pytest.raises(conversation_service.TransitionError):
         conversation_service.transition_conversation(db_session, conv, ConversationState.PURGED)
+
+
+def test_set_legal_hold_toggles_flag(db_session):
+    owner = _make_user(db_session)
+    conv = conversation_service.create_conversation(db_session, owner.id)
+
+    updated = conversation_service.set_legal_hold(db_session, conv, True)
+    assert updated.legal_hold is True
+
+    updated = conversation_service.set_legal_hold(db_session, conv, False)
+    assert updated.legal_hold is False
+
+
+def test_request_erasure_purges_when_no_legal_hold(db_session):
+    owner = _make_user(db_session)
+    conv = conversation_service.create_conversation(db_session, owner.id)
+    conversation_service.transition_conversation(db_session, conv, ConversationState.SOFT_DELETED)
+
+    action, reason = conversation_service.request_erasure(db_session, conv)
+
+    assert action == "purge"
+    assert conv.state == "purged"
+    assert conv.erasure_requested is True
+    assert conv.encryption_key_id is None
+
+
+def test_request_erasure_refused_under_legal_hold(db_session):
+    owner = _make_user(db_session)
+    conv = conversation_service.create_conversation(db_session, owner.id)
+    conversation_service.set_legal_hold(db_session, conv, True)
+
+    action, reason = conversation_service.request_erasure(db_session, conv)
+
+    assert action == "refuse"
+    assert "legal hold" in reason.lower()
+    assert conv.state == "active"
+    assert conv.erasure_requested is True
