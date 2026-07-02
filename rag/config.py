@@ -67,5 +67,24 @@ class Settings(BaseSettings):
     dense_query_prefix: str = ""
     dense_passage_prefix: str = ""   # applied to texts during ingestion for asymmetric models
 
+    # Postgres (users/RBAC/sessions) — dev-only default; §7 replaces with a generated secret
+    database_url: str = "postgresql+psycopg://postgres:password@localhost:5432/appliance"
+
+    # JWT — dev-only fixed key; §7 replaces with an installer-generated secret
+    jwt_secret_key: str = "yhzI7e9m4LMmV2bUpZuUFjg7I6WgTooqMBN-6ZiXxDA_PwMg_Xb1sDHpTPIUMX2f"
+    jwt_access_ttl_seconds: int = 900        # 15 min
+    jwt_refresh_ttl_seconds: int = 1209600   # 14 days
+    jwt_mfa_pending_ttl_seconds: int = 300   # 5 min
+
+    # MFA secret-at-rest encryption — dev-only fixed key; §7 replaces with a keystore-managed key
+    mfa_encryption_key: str = "uhlp2Qq9mxc53yfrtlcGqejIbw0ZB7yWPJRbY3gtNmo="
+
+    # Account lockout
+    lockout_threshold: int = 5
+    lockout_duration_seconds: int = 900      # 15 min
+
+    # Audit log directory (existing AuditLog, extended with auth/RBAC events)
+    audit_log_dir: str = "data/audit"
+
 
 settings = Settings()
