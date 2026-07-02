@@ -6,11 +6,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, require_permission
-from rag.api.schemas.admin import UserCreate, UserResponse, UserUpdate
+from rag.api.schemas.admin import UserCreate, UserResponse, UserRoleAssign, UserUpdate
 from rag.crosscutting.security.audit_events import record_admin_change
 from rag.crosscutting.security.password import hash_password
 from rag.storage.sql.base import get_db
-from rag.storage.sql.models import Department, User
+from rag.storage.sql.models import Department, Role, User, UserRole
 
 router = APIRouter()
 
@@ -113,3 +113,41 @@ def update_user(
         },
     )
     return _to_response(user)
+
+
+@router.post("/users/{user_id}/roles", status_code=201)
+def assign_role(
+    user_id: uuid.UUID,
+    body: UserRoleAssign,
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> dict:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    role_id = uuid.UUID(body.role_id)
+    role = db.get(Role, role_id)
+    if role is None:
+        raise HTTPException(status_code=404, detail="role not found")
+    if db.get(UserRole, (user_id, role_id)) is not None:
+        raise HTTPException(status_code=409, detail="role already assigned")
+
+    db.add(UserRole(user_id=user_id, role_id=role_id))
+    db.commit()
+    record_admin_change(str(current.user.id), "user_role_assigned", f"user:{user_id}", new_value={"role_id": str(role_id)})
+    return {"user_id": str(user_id), "role_id": str(role_id)}
+
+
+@router.delete("/users/{user_id}/roles/{role_id}", status_code=204)
+def remove_role(
+    user_id: uuid.UUID,
+    role_id: uuid.UUID,
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> None:
+    ur = db.get(UserRole, (user_id, role_id))
+    if ur is None:
+        raise HTTPException(status_code=404, detail="role assignment not found")
+    db.delete(ur)
+    db.commit()
+    record_admin_change(str(current.user.id), "user_role_removed", f"user:{user_id}", prev_value={"role_id": str(role_id)})

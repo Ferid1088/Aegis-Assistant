@@ -111,3 +111,39 @@ def test_get_unknown_user_404s(client, db_session):
 
     resp = client.get(f"/api/v1/admin/users/{fake_id}", headers=headers)
     assert resp.status_code == 404
+
+
+def test_assign_and_remove_role(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post("/api/v1/admin/users", json={"username": "frank"}, headers=headers)
+    user_id = resp.json()["id"]
+
+    role = Role(name="frank_role")
+    db_session.add(role)
+    db_session.commit()
+
+    resp = client.post(f"/api/v1/admin/users/{user_id}/roles", json={"role_id": str(role.id)}, headers=headers)
+    assert resp.status_code == 201
+
+    resp = client.post(f"/api/v1/admin/users/{user_id}/roles", json={"role_id": str(role.id)}, headers=headers)
+    assert resp.status_code == 409
+
+    resp = client.delete(f"/api/v1/admin/users/{user_id}/roles/{role.id}", headers=headers)
+    assert resp.status_code == 204
+
+    resp = client.delete(f"/api/v1/admin/users/{user_id}/roles/{role.id}", headers=headers)
+    assert resp.status_code == 404
+
+
+def test_assign_unknown_role_404s(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+    fake_id = "00000000-0000-0000-0000-000000000000"
+
+    resp = client.post("/api/v1/admin/users", json={"username": "grace"}, headers=headers)
+    user_id = resp.json()["id"]
+
+    resp = client.post(f"/api/v1/admin/users/{user_id}/roles", json={"role_id": fake_id}, headers=headers)
+    assert resp.status_code == 404

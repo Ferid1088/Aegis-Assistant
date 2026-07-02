@@ -68,3 +68,7 @@ class UserUpdate(BaseModel):
     email: str | None = None
     department_id: str | None = None
     is_active: bool | None = None
+
+
+class UserRoleAssign(BaseModel):
+    role_id: str
