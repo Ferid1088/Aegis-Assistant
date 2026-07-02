@@ -137,3 +137,23 @@ def test_request_erasure_refused_under_legal_hold(db_session):
     assert "legal hold" in reason.lower()
     assert conv.state == "active"
     assert conv.erasure_requested is True
+
+
+def test_request_erasure_purge_deletes_conversation_turns(db_session):
+    from rag.domain import conversation_service, conversation_turn_service
+    from rag.storage.sql.models import User
+
+    user = User(username="alice")
+    db_session.add(user)
+    db_session.flush()
+    conv = conversation_service.create_conversation(db_session, user.id)
+    conversation_turn_service.append_turn(
+        db_session, conv.id, question="q", standalone_question="q", answer="a", citations=[],
+    )
+    conversation_service.transition_conversation(
+        db_session, conv, conversation_service.ConversationState.SOFT_DELETED,
+    )
+
+    conversation_service.request_erasure(db_session, conv)
+
+    assert conversation_turn_service.list_recent_turns(db_session, conv.id, limit=10) == []

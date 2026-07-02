@@ -79,9 +79,8 @@ def request_erasure(db: Session, conv: Conversation) -> tuple[str, str]:
     action, reason = resolve_erasure(domain_conv)
 
     if action == "purge":
-        # No message/chat content exists yet in this codebase to actually crypto-shred;
-        # clearing encryption_key_id is a placeholder for real key destruction once
-        # conversation content is built (out of scope for this plan).
+        from rag.domain import conversation_turn_service
+        conversation_turn_service.delete_all_for_conversation(db, conv.id)
         conv.state = ConversationState.PURGED.value
         conv.encryption_key_id = None
         db.commit()
