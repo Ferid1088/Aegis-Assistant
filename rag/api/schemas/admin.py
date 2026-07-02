@@ -37,3 +37,12 @@ class RoleGrantCreate(BaseModel):
 
 class RolePermissionCreate(BaseModel):
     permission: str
+
+
+class DocumentTypeCreate(BaseModel):
+    label: str
+
+
+class DocumentTypeResponse(BaseModel):
+    id: str
+    label: str

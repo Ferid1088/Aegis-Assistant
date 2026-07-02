@@ -7,11 +7,12 @@ from sqlalchemy.orm import Session
 from rag.api.deps import AuthenticatedUser, require_permission
 from rag.api.schemas.admin import (
     AccessLevelCreate, AccessLevelResponse, DepartmentCreate, DepartmentResponse,
-    RoleCreate, RoleGrantCreate, RolePermissionCreate, RoleResponse,
+    DocumentTypeCreate, DocumentTypeResponse, RoleCreate, RoleGrantCreate,
+    RolePermissionCreate, RoleResponse,
 )
 from rag.crosscutting.security.audit_events import record_admin_change
 from rag.storage.sql.base import get_db
-from rag.storage.sql.models import AccessLevel, Department, Role, RoleAccessGrant, RolePermission
+from rag.storage.sql.models import AccessLevel, Department, DocumentType, Role, RoleAccessGrant, RolePermission
 
 router = APIRouter()
 
@@ -205,3 +206,39 @@ def revoke_permission(
         str(current.user.id), "role_permission_removed", f"role:{role_id}",
         prev_value={"permission": permission},
     )
+
+
+@router.post("/document-types", response_model=DocumentTypeResponse, status_code=201)
+def create_document_type(
+    body: DocumentTypeCreate,
+    current: AuthenticatedUser = Depends(require_permission("admin:document_types")),
+    db: Session = Depends(get_db),
+) -> DocumentTypeResponse:
+    dt = DocumentType(label=body.label)
+    db.add(dt)
+    db.commit()
+    record_admin_change(str(current.user.id), "document_type_created", f"document_type:{dt.id}", new_value={"label": dt.label})
+    return DocumentTypeResponse(id=str(dt.id), label=dt.label)
+
+
+@router.get("/document-types", response_model=list[DocumentTypeResponse])
+def list_document_types(
+    current: AuthenticatedUser = Depends(require_permission("admin:document_types")),
+    db: Session = Depends(get_db),
+) -> list[DocumentTypeResponse]:
+    types = db.execute(select(DocumentType)).scalars().all()
+    return [DocumentTypeResponse(id=str(t.id), label=t.label) for t in types]
+
+
+@router.delete("/document-types/{document_type_id}", status_code=204)
+def delete_document_type(
+    document_type_id: uuid.UUID,
+    current: AuthenticatedUser = Depends(require_permission("admin:document_types")),
+    db: Session = Depends(get_db),
+) -> None:
+    dt = db.get(DocumentType, document_type_id)
+    if dt is None:
+        raise HTTPException(status_code=404, detail="document type not found")
+    db.delete(dt)
+    db.commit()
+    record_admin_change(str(current.user.id), "document_type_deleted", f"document_type:{document_type_id}")

@@ -174,3 +174,18 @@ def test_grant_and_revoke_permission(client, db_session):
 
     resp = client.delete(f"/api/v1/admin/roles/{role['id']}/permissions/admin:users", headers=headers)
     assert resp.status_code == 204
+
+
+def test_create_list_and_delete_document_type(client, db_session):
+    _, token = _make_admin_user(db_session, permission="admin:document_types")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post("/api/v1/admin/document-types", json={"label": "manual"}, headers=headers)
+    assert resp.status_code == 201
+    dt_id = resp.json()["id"]
+
+    resp = client.get("/api/v1/admin/document-types", headers=headers)
+    assert any(d["id"] == dt_id for d in resp.json())
+
+    resp = client.delete(f"/api/v1/admin/document-types/{dt_id}", headers=headers)
+    assert resp.status_code == 204
