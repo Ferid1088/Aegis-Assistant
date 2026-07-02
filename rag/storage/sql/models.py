@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, Uuid,
+    Boolean, CheckConstraint, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -133,3 +133,26 @@ class LoginAttempt(Base):
     success: Mapped[bool] = mapped_column(Boolean, nullable=False)
     ip: Mapped[str | None] = mapped_column(String, nullable=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    state: Mapped[str] = mapped_column(String, nullable=False, default="active")
+    legal_hold: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    erasure_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    retention_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    encryption_key_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
+
+
+class ConversationGrant(Base):
+    __tablename__ = "conversation_grants"
+    __table_args__ = (CheckConstraint("permission IN ('read','write','admin')", name="ck_conversation_grant_permission"),)
+
+    conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    permission: Mapped[str] = mapped_column(String, nullable=False, default="read")
