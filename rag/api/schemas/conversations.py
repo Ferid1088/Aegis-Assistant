@@ -22,3 +22,21 @@ class ErasureResponse(BaseModel):
 
 class LegalHoldRequest(BaseModel):
     hold: bool
+
+
+class MessageRequest(BaseModel):
+    question: str
+    doc_filter: dict | None = None
+
+
+class MessageResponse(BaseModel):
+    turn_index: int
+    answer: str
+    citations: list
+
+
+class TurnResponse(BaseModel):
+    turn_index: int
+    question: str
+    answer: str
+    citations: list

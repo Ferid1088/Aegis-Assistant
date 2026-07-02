@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
@@ -170,3 +171,79 @@ def test_legal_hold_blocks_owners_own_erasure_request(client, db_session):
 
     check = client.get(f"/api/v1/conversations/{conv_id}", headers=owner_headers)
     assert check.json()["state"] == "active"
+
+
+@patch("rag.api.routers.conversations.build_query_graph")
+def test_post_message_returns_answer_and_persists_turn(mock_build_graph, client, db_session):
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+
+    mock_graph = mock_build_graph.return_value
+    mock_graph.invoke.return_value = {
+        "answer": "42", "citations": [{"page_numbers": [1]}],
+        "standalone_question": "What is the answer?", "turn_history": [],
+    }
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/messages", json={"question": "What is the answer?"}, headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["answer"] == "42"
+    assert resp.json()["turn_index"] == 1
+
+    listing = client.get(f"/api/v1/conversations/{conv_id}/messages", headers=headers)
+    assert listing.status_code == 200
+    assert len(listing.json()) == 1
+    assert listing.json()[0]["question"] == "What is the answer?"
+
+
+@patch("rag.api.routers.conversations.build_query_graph")
+def test_post_message_rejected_when_conversation_not_active(mock_build_graph, client, db_session):
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+    client.post(f"/api/v1/conversations/{conv_id}/transition", json={"target_state": "locked"}, headers=headers)
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/messages", json={"question": "hi"}, headers=headers,
+    )
+    assert resp.status_code == 409
+    mock_build_graph.assert_not_called()
+
+
+@patch("rag.api.routers.conversations.build_query_graph")
+def test_post_message_not_owned_404s(mock_build_graph, client, db_session):
+    _, alice_token = _make_user_with_token(db_session, "alice")
+    _, mallory_token = _make_user_with_token(db_session, "mallory")
+    conv_id = client.post(
+        "/api/v1/conversations", headers={"Authorization": f"Bearer {alice_token}"},
+    ).json()["id"]
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/messages", json={"question": "hi"},
+        headers={"Authorization": f"Bearer {mallory_token}"},
+    )
+    assert resp.status_code == 404
+
+
+@patch("rag.api.routers.conversations.build_query_graph")
+def test_second_message_uses_persisted_history(mock_build_graph, client, db_session):
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+
+    mock_graph = mock_build_graph.return_value
+    mock_graph.invoke.return_value = {
+        "answer": "a1", "citations": [], "standalone_question": "q1", "turn_history": [],
+    }
+    client.post(f"/api/v1/conversations/{conv_id}/messages", json={"question": "q1"}, headers=headers)
+
+    mock_graph.invoke.return_value = {
+        "answer": "a2", "citations": [], "standalone_question": "q2 standalone", "turn_history": [],
+    }
+    client.post(f"/api/v1/conversations/{conv_id}/messages", json={"question": "q2"}, headers=headers)
+
+    invoked_state = mock_graph.invoke.call_args.args[0]
+    assert len(invoked_state["turn_history"]) == 1
+    assert invoked_state["turn_history"][0]["user_question"] == "q1"

@@ -4,14 +4,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user, require_permission
-from rag.api.schemas.conversations import ConversationResponse, ErasureResponse, LegalHoldRequest, TransitionRequest
+from rag.api.schemas.conversations import (
+    ConversationResponse, ErasureResponse, LegalHoldRequest, MessageRequest, MessageResponse,
+    TransitionRequest, TurnResponse,
+)
 from rag.crosscutting.security.audit_events import record_admin_change
-from rag.domain import conversation_service
+from rag.domain import conversation_service, conversation_turn_service
 from rag.domain.conversation import ConversationState
+from rag.graphs.query import build_query_graph
 from rag.storage.sql.base import get_db
 from rag.storage.sql.models import Conversation
 
 router = APIRouter()
+
+_MAX_HISTORY_TURNS = 8  # mirrors rag/graphs/query.py's own _MAX_TURNS constant
 
 
 def _to_response(conv: Conversation) -> ConversationResponse:
@@ -111,3 +117,55 @@ def legal_hold(
         new_value={"legal_hold": body.hold},
     )
     return _to_response(conv)
+
+
+@router.post("/{conversation_id}/messages", response_model=MessageResponse)
+def post_message(
+    conversation_id: uuid.UUID,
+    body: MessageRequest,
+    current: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    try:
+        conv = conversation_service.get_owned_conversation(db, conversation_id, current.user.id)
+    except conversation_service.ConversationNotFound as exc:
+        raise HTTPException(status_code=404, detail="conversation not found") from exc
+
+    if conv.state != ConversationState.ACTIVE.value:
+        raise HTTPException(status_code=409, detail=f"conversation is {conv.state}, not active")
+
+    recent = conversation_turn_service.list_recent_turns(db, conversation_id, limit=_MAX_HISTORY_TURNS)
+    state = {
+        "question": body.question,
+        "turn_history": conversation_turn_service.to_turn_history(recent),
+        "user_levels": current.auth_subject.effective_levels,
+    }
+    if body.doc_filter:
+        state["doc_filter"] = body.doc_filter
+
+    result = build_query_graph().invoke(state)
+
+    turn = conversation_turn_service.append_turn(
+        db, conversation_id, question=body.question,
+        standalone_question=result.get("standalone_question", body.question),
+        answer=result.get("answer", ""), citations=result.get("citations", []),
+    )
+    return MessageResponse(turn_index=turn.turn_index, answer=turn.answer, citations=turn.citations)
+
+
+@router.get("/{conversation_id}/messages", response_model=list[TurnResponse])
+def list_messages(
+    conversation_id: uuid.UUID,
+    current: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[TurnResponse]:
+    try:
+        conversation_service.get_owned_conversation(db, conversation_id, current.user.id)
+    except conversation_service.ConversationNotFound as exc:
+        raise HTTPException(status_code=404, detail="conversation not found") from exc
+
+    turns = conversation_turn_service.list_recent_turns(db, conversation_id, limit=1000)
+    return [
+        TurnResponse(turn_index=t.turn_index, question=t.question, answer=t.answer, citations=t.citations)
+        for t in turns
+    ]
