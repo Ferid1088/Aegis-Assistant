@@ -4,7 +4,7 @@ from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from rag.api.deps import get_current_user
-from rag.crosscutting.security.tokens import create_access_token
+from rag.crosscutting.security.tokens import create_access_token, create_mfa_pending_token
 from rag.storage.sql.base import get_db
 from rag.storage.sql.models import User, UserSession
 
@@ -73,6 +73,46 @@ def test_stale_token_version_is_rejected(db_session):
     token = create_access_token(str(user.id), str(session.id), user.token_version)
     user.token_version += 1  # e.g. a password reset happened
     db_session.commit()
+
+    app = _app_with_protected_route(db_session)
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+
+
+def test_expired_token_is_rejected(db_session):
+    from rag.config import settings
+
+    user, session = _make_user_and_session(db_session)
+
+    original = settings.jwt_access_ttl_seconds
+    settings.jwt_access_ttl_seconds = -10  # already expired
+    try:
+        token = create_access_token(str(user.id), str(session.id), user.token_version)
+    finally:
+        settings.jwt_access_ttl_seconds = original
+
+    app = _app_with_protected_route(db_session)
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+
+
+def test_wrong_token_type_is_rejected(db_session):
+    user, _session = _make_user_and_session(db_session)
+    token = create_mfa_pending_token(str(user.id))
+
+    app = _app_with_protected_route(db_session)
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+
+
+def test_inactive_user_is_rejected(db_session):
+    user, session = _make_user_and_session(db_session)
+    user.is_active = False
+    db_session.commit()
+    token = create_access_token(str(user.id), str(session.id), user.token_version)
 
     app = _app_with_protected_route(db_session)
     client = TestClient(app, raise_server_exceptions=False)
