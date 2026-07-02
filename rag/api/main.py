@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from rag.api.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
-from rag.api.routers import admin_audit, admin_rbac, admin_users, auth as auth_router, conversations
+from rag.api.routers import admin_audit, admin_rbac, admin_users, auth as auth_router, conversations, documents
 
 
 def create_app() -> FastAPI:
@@ -27,5 +27,6 @@ def create_app() -> FastAPI:
     app.include_router(admin_users.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(admin_audit.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["conversations"])
+    app.include_router(documents.router, prefix="/api/v1/documents", tags=["documents"])
 
     return app
