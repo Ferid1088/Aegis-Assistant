@@ -117,3 +117,14 @@ class AuditLog:
             return 0
         with open(self._path) as f:
             return sum(1 for line in f if line.strip())
+
+    def read_all(self) -> list[dict]:
+        if not self._path.exists():
+            return []
+        entries = []
+        with open(self._path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    entries.append(json.loads(line))
+        return entries

@@ -84,3 +84,13 @@ class SessionResponse(BaseModel):
     expires_at: str
     ip: str | None
     user_agent: str | None
+
+
+class AuditEntryResponse(BaseModel):
+    actor_user: str
+    action: str
+    resource: str
+    ts: str
+    request_id: str
+    prev_value: dict | None
+    new_value: dict | None
