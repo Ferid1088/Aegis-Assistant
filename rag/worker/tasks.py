@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 from rag.domain import ingestion_job_service
 from rag.graphs.ingestion import build_ingestion_graph
@@ -20,12 +21,17 @@ def run_ingestion(self, job_id: str) -> None:
         try:
             result = build_ingestion_graph().invoke(state)
         except Exception as exc:
+            if self.request.retries < self.max_retries:
+                ingestion_job_service.record_retry_attempt(db, job, error=str(exc))
+                raise self.retry(exc=exc)
             ingestion_job_service.mark_failed(db, job, error=str(exc))
-            raise self.retry(exc=exc)
+            Path(job.staged_path).unlink(missing_ok=True)
+            return
 
         status = result.get("status")
         if status == "error":
             ingestion_job_service.mark_failed(db, job, error=result.get("error", "unknown error"))
+            Path(job.staged_path).unlink(missing_ok=True)
             return
 
         doc_meta = result.get("doc_meta")
@@ -33,5 +39,6 @@ def run_ingestion(self, job_id: str) -> None:
         ingestion_job_service.mark_done(
             db, job, logical_doc_id=logical_doc_id, indexed_count=result.get("indexed_count"),
         )
+        Path(job.staged_path).unlink(missing_ok=True)
     finally:
         db.close()

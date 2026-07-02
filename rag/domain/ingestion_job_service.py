@@ -49,3 +49,10 @@ def mark_failed(db: Session, job: IngestionJob, *, error: str) -> IngestionJob:
     job.retry_count += 1
     db.commit()
     return job
+
+
+def record_retry_attempt(db: Session, job: IngestionJob, *, error: str) -> IngestionJob:
+    job.error = error
+    job.retry_count += 1
+    db.commit()
+    return job

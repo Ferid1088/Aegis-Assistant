@@ -49,3 +49,21 @@ def test_mark_failed_sets_error_and_increments_retry_count(db_session):
     assert job.status == "failed"
     assert job.error == "boom"
     assert job.retry_count == 1
+
+
+def test_record_retry_attempt_increments_count_and_keeps_status_running(db_session):
+    user = _make_user(db_session)
+    job = ingestion_job_service.create_job(
+        db_session, uploaded_by=user.id, filename="a.pdf", staged_path="/tmp/a.pdf", doc_version=None,
+    )
+    ingestion_job_service.mark_running(db_session, job)
+
+    ingestion_job_service.record_retry_attempt(db_session, job, error="transient boom")
+    assert job.status == "running"
+    assert job.error == "transient boom"
+    assert job.retry_count == 1
+
+    ingestion_job_service.record_retry_attempt(db_session, job, error="transient boom again")
+    assert job.status == "running"
+    assert job.error == "transient boom again"
+    assert job.retry_count == 2
