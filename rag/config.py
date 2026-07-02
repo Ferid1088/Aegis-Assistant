@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     qdrant_path: str = "./data/qdrant"
     qdrant_collection: str = "documents"
     sqlite_path: str = "./data/documents.db"
+    upload_dir: str = "./data/uploads"
+    max_upload_bytes: int = 100 * 1024 * 1024  # 100 MB
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = "password"
