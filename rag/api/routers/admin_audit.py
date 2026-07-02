@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 
 from rag.api.deps import AuthenticatedUser, require_permission
-from rag.api.schemas.admin import AuditEntryResponse
+from rag.api.schemas.admin import AuditEntryResponse, AuditVerifyResponse
 from rag.config import settings
 from rag.crosscutting.security.audit import AuditLog
 
@@ -34,3 +34,12 @@ def list_audit_entries(
         )
         for e in entries
     ]
+
+
+@router.get("/audit/verify", response_model=AuditVerifyResponse)
+def verify_audit_chain(
+    current: AuthenticatedUser = Depends(require_permission("admin:audit")),
+) -> AuditVerifyResponse:
+    log = AuditLog(log_dir=settings.audit_log_dir)
+    valid, count, error = log.verify_chain()
+    return AuditVerifyResponse(valid=valid, count=count, error=error)

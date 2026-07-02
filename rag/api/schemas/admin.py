@@ -94,3 +94,9 @@ class AuditEntryResponse(BaseModel):
     request_id: str
     prev_value: dict | None
     new_value: dict | None
+
+
+class AuditVerifyResponse(BaseModel):
+    valid: bool
+    count: int
+    error: str

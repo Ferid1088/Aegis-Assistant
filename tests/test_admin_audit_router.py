@@ -76,3 +76,35 @@ def test_list_audit_requires_permission(client, db_session):
 
     resp = client.get("/api/v1/admin/audit", headers=headers)
     assert resp.status_code == 403
+
+
+def test_verify_audit_chain_valid(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    record_admin_change("actor-1", "department_created", "department:d1")
+    record_admin_change("actor-2", "role_created", "role:r1")
+
+    resp = client.get("/api/v1/admin/audit/verify", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["valid"] is True
+    assert body["count"] == 2
+    assert body["error"] == ""
+
+
+def test_verify_audit_chain_detects_tampering(client, db_session, tmp_path):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    record_admin_change("actor-1", "department_created", "department:d1")
+
+    log_file = tmp_path / "immutable_audit.jsonl"
+    content = log_file.read_text()
+    tampered = content.replace("department_created", "department_deleted")
+    log_file.write_text(tampered)
+
+    resp = client.get("/api/v1/admin/audit/verify", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["valid"] is False
