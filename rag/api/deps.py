@@ -20,6 +20,15 @@ class AuthenticatedUser:
     auth_subject: AuthSubject
 
 
+def _parse_uuid_claim(value: str | None) -> uuid.UUID:
+    if value is None:
+        raise HTTPException(status_code=401, detail="invalid token")
+    try:
+        return uuid.UUID(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="invalid token") from exc
+
+
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> AuthenticatedUser:
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
@@ -34,14 +43,15 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Authent
     if payload.get("type") != "access":
         raise HTTPException(status_code=401, detail="invalid token type")
 
-    user = db.execute(select(User).where(User.id == uuid.UUID(payload["sub"]))).scalar_one_or_none()
+    user_id = _parse_uuid_claim(payload.get("sub"))
+    user = db.execute(select(User).where(User.id == user_id)).scalar_one_or_none()
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="account inactive")
 
     if payload.get("tv") != user.token_version:
         raise HTTPException(status_code=401, detail="token has been invalidated")
 
-    session_id = uuid.UUID(payload["session_id"])
+    session_id = _parse_uuid_claim(payload.get("session_id"))
     session = db.execute(select(UserSession).where(UserSession.id == session_id)).scalar_one_or_none()
     if session is None or session.revoked_at is not None:
         raise HTTPException(status_code=401, detail="session revoked")

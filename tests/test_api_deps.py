@@ -1,10 +1,14 @@
+import time
+import uuid
 from datetime import datetime, timedelta, timezone
 
+import jwt
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
 from rag.api.deps import get_current_user
-from rag.crosscutting.security.tokens import create_access_token, create_mfa_pending_token
+from rag.config import settings
+from rag.crosscutting.security.tokens import ACCESS_ALGORITHM, create_access_token, create_mfa_pending_token
 from rag.storage.sql.base import get_db
 from rag.storage.sql.models import User, UserSession
 
@@ -113,6 +117,65 @@ def test_inactive_user_is_rejected(db_session):
     user.is_active = False
     db_session.commit()
     token = create_access_token(str(user.id), str(session.id), user.token_version)
+
+    app = _app_with_protected_route(db_session)
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+
+
+def _encode_raw(payload: dict) -> str:
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=ACCESS_ALGORITHM)
+
+
+def test_token_with_missing_sub_claim_is_rejected_not_500(db_session):
+    _user, session = _make_user_and_session(db_session)
+    now = int(time.time())
+    token = _encode_raw({
+        "session_id": str(session.id), "tv": 0, "type": "access",
+        "iat": now, "exp": now + 300,
+    })
+
+    app = _app_with_protected_route(db_session)
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+
+
+def test_token_with_non_uuid_sub_is_rejected_not_500(db_session):
+    now = int(time.time())
+    token = _encode_raw({
+        "sub": "not-a-uuid", "session_id": str(uuid.uuid4()), "tv": 0,
+        "type": "access", "iat": now, "exp": now + 300,
+    })
+
+    app = _app_with_protected_route(db_session)
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+
+
+def test_token_with_non_uuid_session_id_is_rejected_not_500(db_session):
+    user, _session = _make_user_and_session(db_session)
+    now = int(time.time())
+    token = _encode_raw({
+        "sub": str(user.id), "session_id": "not-a-uuid", "tv": user.token_version,
+        "type": "access", "iat": now, "exp": now + 300,
+    })
+
+    app = _app_with_protected_route(db_session)
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 401
+
+
+def test_token_with_missing_session_id_claim_is_rejected_not_500(db_session):
+    user, _session = _make_user_and_session(db_session)
+    now = int(time.time())
+    token = _encode_raw({
+        "sub": str(user.id), "tv": user.token_version,
+        "type": "access", "iat": now, "exp": now + 300,
+    })
 
     app = _app_with_protected_route(db_session)
     client = TestClient(app, raise_server_exceptions=False)
