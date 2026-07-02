@@ -1,4 +1,6 @@
 import pyotp
+import pytest
+from cryptography.fernet import Fernet
 
 from rag.crosscutting.security.mfa import (
     decrypt_secret, encrypt_secret, generate_totp_secret, totp_uri, verify_totp,
@@ -34,3 +36,22 @@ def test_totp_uri_contains_username_and_issuer():
     uri = totp_uri(secret, "alice", issuer="RAG Appliance")
     assert "alice" in uri
     assert "RAG%20Appliance" in uri or "RAG Appliance" in uri
+
+
+def test_decrypt_secret_with_wrong_key_raises_value_error():
+    """A rotated/wrong mfa_encryption_key must fail cleanly, not raise the raw
+    cryptography.fernet.InvalidToken exception."""
+    secret = generate_totp_secret()
+    encrypted_with_other_key = Fernet(Fernet.generate_key()).encrypt(secret.encode())
+
+    with pytest.raises(ValueError):
+        decrypt_secret(encrypted_with_other_key)
+
+
+def test_decrypt_secret_with_corrupted_ciphertext_raises_value_error():
+    secret = generate_totp_secret()
+    encrypted = bytearray(encrypt_secret(secret))
+    encrypted[-1] ^= 0xFF  # flip bits to corrupt the ciphertext/HMAC
+
+    with pytest.raises(ValueError):
+        decrypt_secret(bytes(encrypted))

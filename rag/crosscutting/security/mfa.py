@@ -1,5 +1,5 @@
 import pyotp
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 from rag.config import settings
 
@@ -17,7 +17,10 @@ def encrypt_secret(raw_secret: str) -> bytes:
 
 
 def decrypt_secret(encrypted: bytes) -> str:
-    return _fernet().decrypt(encrypted).decode()
+    try:
+        return _fernet().decrypt(encrypted).decode()
+    except InvalidToken as exc:
+        raise ValueError("could not decrypt MFA secret: invalid key or corrupted ciphertext") from exc
 
 
 def totp_uri(raw_secret: str, username: str, issuer: str = "RAG Appliance") -> str:

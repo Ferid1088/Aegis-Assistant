@@ -69,7 +69,10 @@ def verify_mfa(db: Session, mfa_pending_token: str, totp_code: str, ip: str = ""
     if user is None or not user.mfa_enabled or user.mfa_secret_encrypted is None:
         raise AuthError("MFA not enabled for this account")
 
-    raw_secret = decrypt_secret(user.mfa_secret_encrypted)
+    try:
+        raw_secret = decrypt_secret(user.mfa_secret_encrypted)
+    except ValueError as exc:
+        raise AuthError("MFA verification failed") from exc
     if not verify_totp(raw_secret, totp_code):
         raise AuthError("invalid MFA code")
 

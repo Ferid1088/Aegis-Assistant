@@ -1,4 +1,5 @@
 import pytest
+from cryptography.fernet import Fernet
 
 from rag.config import settings
 from rag.crosscutting.security import local_auth
@@ -100,3 +101,24 @@ def test_verify_mfa_rejects_access_token_in_place_of_pending_token(db_session):
 
     with pytest.raises(local_auth.AuthError):
         local_auth.verify_mfa(db_session, result.access_token, "000000")
+
+
+def test_verify_mfa_with_undecryptable_secret_raises_auth_error_not_500(db_session):
+    """If mfa_encryption_key was rotated (or the ciphertext is corrupted), decrypt_secret
+    raises ValueError; verify_mfa must translate that into a clean AuthError, not let it
+    propagate as an unhandled exception."""
+    user = User(username="alice", password_hash=hash_password("correct-horse-battery-staple"))
+    secret = generate_totp_secret()
+    user.mfa_enabled = True
+    # Encrypted with a different key than settings.mfa_encryption_key -> undecryptable.
+    user.mfa_secret_encrypted = Fernet(Fernet.generate_key()).encrypt(secret.encode())
+    db_session.add(user)
+    db_session.commit()
+
+    login_result = local_auth.login(db_session, "alice", "correct-horse-battery-staple")
+    assert login_result.mfa_required is True
+
+    import pyotp
+    code = pyotp.TOTP(secret).now()
+    with pytest.raises(local_auth.AuthError):
+        local_auth.verify_mfa(db_session, login_result.mfa_pending_token, code)
