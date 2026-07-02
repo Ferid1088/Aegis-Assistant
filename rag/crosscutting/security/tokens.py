@@ -20,6 +20,7 @@ def create_access_token(user_id: str, session_id: str, token_version: int) -> st
         "iat": now,
         "exp": now + settings.jwt_access_ttl_seconds,
         "type": "access",
+        "jti": secrets.token_urlsafe(16),
     }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=ACCESS_ALGORITHM)
 
