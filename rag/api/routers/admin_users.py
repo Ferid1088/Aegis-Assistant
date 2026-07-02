@@ -1,0 +1,115 @@
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from rag.api.deps import AuthenticatedUser, require_permission
+from rag.api.schemas.admin import UserCreate, UserResponse, UserUpdate
+from rag.crosscutting.security.audit_events import record_admin_change
+from rag.crosscutting.security.password import hash_password
+from rag.storage.sql.base import get_db
+from rag.storage.sql.models import Department, User
+
+router = APIRouter()
+
+
+def _to_response(user: User) -> UserResponse:
+    return UserResponse(
+        id=str(user.id), username=user.username, email=user.email,
+        department_id=str(user.department_id) if user.department_id else None,
+        is_active=user.is_active, mfa_enabled=user.mfa_enabled,
+    )
+
+
+@router.post("/users", response_model=UserResponse, status_code=201)
+def create_user(
+    body: UserCreate,
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    if db.execute(select(User).where(User.username == body.username)).scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="username already exists")
+
+    department_id = None
+    if body.department_id is not None:
+        department_id = uuid.UUID(body.department_id)
+        if db.get(Department, department_id) is None:
+            raise HTTPException(status_code=404, detail="department not found")
+
+    user = User(
+        username=body.username,
+        email=body.email,
+        password_hash=hash_password(body.password) if body.password else None,
+        department_id=department_id,
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="username already exists") from exc
+    record_admin_change(str(current.user.id), "user_created", f"user:{user.id}", new_value={"username": user.username})
+    return _to_response(user)
+
+
+@router.get("/users", response_model=list[UserResponse])
+def list_users(
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> list[UserResponse]:
+    users = db.execute(select(User)).scalars().all()
+    return [_to_response(u) for u in users]
+
+
+@router.get("/users/{user_id}", response_model=UserResponse)
+def get_user(
+    user_id: uuid.UUID,
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    return _to_response(user)
+
+
+@router.patch("/users/{user_id}", response_model=UserResponse)
+def update_user(
+    user_id: uuid.UUID,
+    body: UserUpdate,
+    current: AuthenticatedUser = Depends(require_permission("admin:users")),
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+
+    prev = {
+        "email": user.email,
+        "department_id": str(user.department_id) if user.department_id else None,
+        "is_active": user.is_active,
+    }
+
+    if body.email is not None:
+        user.email = body.email
+    if body.department_id is not None:
+        dept_id = uuid.UUID(body.department_id)
+        if db.get(Department, dept_id) is None:
+            raise HTTPException(status_code=404, detail="department not found")
+        user.department_id = dept_id
+    if body.is_active is not None:
+        user.is_active = body.is_active
+
+    db.commit()
+    record_admin_change(
+        str(current.user.id), "user_updated", f"user:{user.id}",
+        prev_value=prev,
+        new_value={
+            "email": user.email,
+            "department_id": str(user.department_id) if user.department_id else None,
+            "is_active": user.is_active,
+        },
+    )
+    return _to_response(user)

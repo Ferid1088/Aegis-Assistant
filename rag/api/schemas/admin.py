@@ -46,3 +46,25 @@ class DocumentTypeCreate(BaseModel):
 class DocumentTypeResponse(BaseModel):
     id: str
     label: str
+
+
+class UserCreate(BaseModel):
+    username: str
+    email: str | None = None
+    password: str | None = None
+    department_id: str | None = None
+
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    email: str | None
+    department_id: str | None
+    is_active: bool
+    mfa_enabled: bool
+
+
+class UserUpdate(BaseModel):
+    email: str | None = None
+    department_id: str | None = None
+    is_active: bool | None = None
