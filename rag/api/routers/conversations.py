@@ -143,7 +143,9 @@ def post_message(
     if body.doc_filter:
         state["doc_filter"] = body.doc_filter
 
-    result = build_query_graph().invoke(state)
+    result = build_query_graph().invoke(
+        state, config={"configurable": {"thread_id": str(conversation_id)}},
+    )
 
     turn = conversation_turn_service.append_turn(
         db, conversation_id, question=body.question,

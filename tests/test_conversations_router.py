@@ -197,6 +197,10 @@ def test_post_message_returns_answer_and_persists_turn(mock_build_graph, client,
     assert len(listing.json()) == 1
     assert listing.json()[0]["question"] == "What is the answer?"
 
+    assert mock_graph.invoke.call_args.kwargs["config"] == {
+        "configurable": {"thread_id": str(conv_id)},
+    }
+
 
 @patch("rag.api.routers.conversations.build_query_graph")
 def test_post_message_rejected_when_conversation_not_active(mock_build_graph, client, db_session):
