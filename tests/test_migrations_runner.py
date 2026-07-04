@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import text
 
 from rag.migrations.base import Migration
+from rag.migrations.runner import apply_pending, get_current_version
 
 
 @pytest.fixture(autouse=True)
@@ -59,9 +60,6 @@ def test_neo4j_baseline_migration_calls_ensure_indexes():
     fake_store = MagicMock()
     MIGRATION.apply(fake_store)
     fake_store._ensure_indexes.assert_called_once_with()
-
-
-from rag.migrations.runner import apply_pending, get_current_version
 
 
 def test_get_current_version_returns_zero_when_untracked(db_session):
@@ -119,7 +117,6 @@ def test_apply_pending_stops_at_first_failure_and_keeps_last_successful_version(
     calls = []
     migrations = [_FakeMigration(1, calls), _FakeMigration(2, calls, fail=True), _FakeMigration(3, calls)]
 
-    import pytest
     with pytest.raises(RuntimeError, match="migration 2 failed"):
         apply_pending(db_session, store=object(), store_name="widget", migrations=migrations)
 
