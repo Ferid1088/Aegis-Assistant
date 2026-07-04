@@ -21,11 +21,33 @@ from rag.storage.vector_store import QdrantVectorStore
 @pytest.fixture()
 def pg_session():
     """Mirrors tests/integration/test_local_auth_flow.py's real-Postgres fixture pattern:
-    a fresh engine against settings.database_url, tables dropped/created per test."""
+    a fresh engine against settings.database_url, tables dropped/created per test.
+
+    `store_schema_versions` deliberately has no ORM model (it's raw-SQL,
+    migration-runner-internal bookkeeping — see Task 1), so it is absent from
+    `Base.metadata` and `Base.metadata.create_all` never creates it. Normally it exists
+    already via the Alembic migration in alembic/versions/0004_store_schema_versions.py,
+    but a genuinely fresh `docker compose up -d postgres` volume won't have that applied.
+    Create it here with `IF NOT EXISTS` (mirroring that migration's column shape) so this
+    fixture is self-sufficient regardless of migration state, without disturbing an
+    already-migrated database.
+    """
     engine = create_engine(settings.database_url)
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
+    session.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS store_schema_versions (
+                store_name TEXT PRIMARY KEY,
+                version INTEGER NOT NULL,
+                applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+    )
+    session.commit()
 
     yield session
 
