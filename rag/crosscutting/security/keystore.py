@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from rag.config import settings
-from rag.storage.sql.models import KeystoreKey
+from rag.storage.sql.models import KeystoreKey, _now
 
 
 def _master_fernet(master_key: str | None = None) -> Fernet:
@@ -47,6 +47,7 @@ def rotate_master_key(db: Session, new_master_key: bytes) -> None:
     for row in rows:
         dek = old_fernet.decrypt(row.wrapped_dek)
         row.wrapped_dek = new_fernet.encrypt(dek)
+        row.rotated_at = _now()
     db.commit()
 
 

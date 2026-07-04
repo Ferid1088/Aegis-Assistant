@@ -28,6 +28,26 @@ def test_rotate_master_key_preserves_dek_values(db_session, monkeypatch):
     assert key_after_rotation == original_key
 
 
+def test_rotate_master_key_sets_rotated_at(db_session, monkeypatch):
+    from cryptography.fernet import Fernet
+    from rag import config
+    from rag.storage.sql.models import KeystoreKey
+
+    keystore.get_or_create_key(db_session, "rotation-test")
+
+    # Before rotation, rotated_at should be None
+    row_before = db_session.get(KeystoreKey, "rotation-test")
+    assert row_before.rotated_at is None
+
+    new_master_key = Fernet.generate_key()
+    keystore.rotate_master_key(db_session, new_master_key)
+    monkeypatch.setattr(config.settings, "keystore_master_key", new_master_key.decode())
+
+    # After rotation, rotated_at should be set
+    row_after = db_session.get(KeystoreKey, "rotation-test")
+    assert row_after.rotated_at is not None
+
+
 def test_delete_key_removes_row_and_next_call_generates_new_key(db_session):
     original_key = keystore.get_or_create_key(db_session, "to-delete")
     keystore.delete_key(db_session, "to-delete")
