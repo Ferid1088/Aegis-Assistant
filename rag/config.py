@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     # MFA secret-at-rest encryption — dev-only fixed key; §7 replaces with a keystore-managed key
     mfa_encryption_key: str = "uhlp2Qq9mxc53yfrtlcGqejIbw0ZB7yWPJRbY3gtNmo="
 
+    # Keystore master key — wraps all per-purpose DEKs (rag/crosscutting/security/keystore.py).
+    # dev-only fixed key; §7 replaces with an installer-generated secret (see generate_secrets.py)
+    keystore_master_key: str = "17EHdjDj-yCVoqEW8QlY6DSRA9yiz1F4LfwnRKu51ls="
+
     # Account lockout
     lockout_threshold: int = 5
     lockout_duration_seconds: int = 900      # 15 min

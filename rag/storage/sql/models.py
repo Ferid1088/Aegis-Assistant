@@ -186,3 +186,12 @@ class ConversationTurn(Base):
     answer: Mapped[str] = mapped_column(String, nullable=False)
     citations: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+class KeystoreKey(Base):
+    __tablename__ = "keystore_keys"
+
+    purpose: Mapped[str] = mapped_column(String, primary_key=True)
+    wrapped_dek: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
