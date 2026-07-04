@@ -70,7 +70,7 @@ def verify_mfa(db: Session, mfa_pending_token: str, totp_code: str, ip: str = ""
         raise AuthError("MFA not enabled for this account")
 
     try:
-        raw_secret = decrypt_secret(user.mfa_secret_encrypted)
+        raw_secret = decrypt_secret(db, user.mfa_secret_encrypted)
     except ValueError as exc:
         raise AuthError("MFA verification failed") from exc
     if not verify_totp(raw_secret, totp_code):

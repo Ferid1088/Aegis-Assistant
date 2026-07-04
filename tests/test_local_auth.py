@@ -19,7 +19,7 @@ def _make_active_user(db_session, username="alice", password="correct-horse-batt
     if mfa:
         secret = generate_totp_secret()
         user.mfa_enabled = True
-        user.mfa_secret_encrypted = encrypt_secret(secret)
+        user.mfa_secret_encrypted = encrypt_secret(db_session, secret)
         db_session.add(user)
         db_session.commit()
         return user, secret

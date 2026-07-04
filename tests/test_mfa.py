@@ -13,11 +13,11 @@ def test_generate_totp_secret_is_valid_base32():
     pyotp.TOTP(secret)  # raises if not valid base32
 
 
-def test_encrypt_decrypt_round_trip():
+def test_encrypt_decrypt_round_trip(db_session):
     secret = generate_totp_secret()
-    encrypted = encrypt_secret(secret)
+    encrypted = encrypt_secret(db_session, secret)
     assert encrypted != secret.encode()
-    assert decrypt_secret(encrypted) == secret
+    assert decrypt_secret(db_session, encrypted) == secret
 
 
 def test_verify_totp_accepts_current_code():
@@ -38,20 +38,20 @@ def test_totp_uri_contains_username_and_issuer():
     assert "RAG%20Appliance" in uri or "RAG Appliance" in uri
 
 
-def test_decrypt_secret_with_wrong_key_raises_value_error():
-    """A rotated/wrong mfa_encryption_key must fail cleanly, not raise the raw
-    cryptography.fernet.InvalidToken exception."""
+def test_decrypt_secret_with_wrong_key_raises_value_error(db_session):
+    """Ciphertext encrypted under an unrelated key must fail cleanly, not raise the
+    raw cryptography.fernet.InvalidToken exception."""
     secret = generate_totp_secret()
     encrypted_with_other_key = Fernet(Fernet.generate_key()).encrypt(secret.encode())
 
     with pytest.raises(ValueError):
-        decrypt_secret(encrypted_with_other_key)
+        decrypt_secret(db_session, encrypted_with_other_key)
 
 
-def test_decrypt_secret_with_corrupted_ciphertext_raises_value_error():
+def test_decrypt_secret_with_corrupted_ciphertext_raises_value_error(db_session):
     secret = generate_totp_secret()
-    encrypted = bytearray(encrypt_secret(secret))
+    encrypted = bytearray(encrypt_secret(db_session, secret))
     encrypted[-1] ^= 0xFF  # flip bits to corrupt the ciphertext/HMAC
 
     with pytest.raises(ValueError):
-        decrypt_secret(bytes(encrypted))
+        decrypt_secret(db_session, bytes(encrypted))

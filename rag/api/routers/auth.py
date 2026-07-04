@@ -32,7 +32,7 @@ def mfa_enroll(current: AuthenticatedUser = Depends(get_current_user), db: Sessi
     if current.user.mfa_enabled:
         raise HTTPException(status_code=409, detail="MFA is already enabled for this account")
     raw_secret = generate_totp_secret()
-    current.user.mfa_secret_encrypted = encrypt_secret(raw_secret)
+    current.user.mfa_secret_encrypted = encrypt_secret(db, raw_secret)
     current.user.mfa_enabled = True
     db.commit()
     record_mfa_enrolled(str(current.user.id))

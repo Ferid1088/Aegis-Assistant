@@ -1,24 +1,27 @@
+import base64
+
 import pyotp
 from cryptography.fernet import Fernet, InvalidToken
+from sqlalchemy.orm import Session
 
-from rag.config import settings
+from rag.crosscutting.security.keystore import get_or_create_key
 
 
-def _fernet() -> Fernet:
-    return Fernet(settings.mfa_encryption_key.encode())
+def _fernet(db: Session) -> Fernet:
+    return Fernet(base64.urlsafe_b64encode(get_or_create_key(db, "mfa")))
 
 
 def generate_totp_secret() -> str:
     return pyotp.random_base32()
 
 
-def encrypt_secret(raw_secret: str) -> bytes:
-    return _fernet().encrypt(raw_secret.encode())
+def encrypt_secret(db: Session, raw_secret: str) -> bytes:
+    return _fernet(db).encrypt(raw_secret.encode())
 
 
-def decrypt_secret(encrypted: bytes) -> str:
+def decrypt_secret(db: Session, encrypted: bytes) -> str:
     try:
-        return _fernet().decrypt(encrypted).decode()
+        return _fernet(db).decrypt(encrypted).decode()
     except InvalidToken as exc:
         raise ValueError("could not decrypt MFA secret: invalid key or corrupted ciphertext") from exc
 
