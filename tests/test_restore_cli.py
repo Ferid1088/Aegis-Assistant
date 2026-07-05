@@ -48,3 +48,34 @@ def test_run_restore_decrypts_extracts_and_restores_each_store(
     assert any(
         "psql" in c.args[0] for c in mock_subprocess_run.call_args_list if c.args
     )
+
+    # Pin the schema-reset call: it must exist, contain the DROP/CREATE commands,
+    # and occur BEFORE the dump-replay psql call (which uses stdin=dump_file).
+    # This regression-protects the fix added in commit 65addac that addresses
+    # silent restore failure when the database already contains the schema.
+    schema_reset_call_idx = None
+    dump_replay_call_idx = None
+
+    for idx, call_obj in enumerate(mock_subprocess_run.call_args_list):
+        cmd = call_obj.args[0] if call_obj.args else []
+        kwargs = call_obj.kwargs
+
+        # Look for the schema-reset call: docker compose exec ... psql ... -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+        if (cmd and "psql" in cmd and "-c" in cmd):
+            # Find the -c argument value
+            try:
+                c_idx = cmd.index("-c")
+                if c_idx + 1 < len(cmd):
+                    c_arg = cmd[c_idx + 1]
+                    if "DROP SCHEMA public CASCADE" in c_arg and "CREATE SCHEMA public" in c_arg:
+                        schema_reset_call_idx = idx
+            except (ValueError, IndexError):
+                pass
+
+        # Look for the dump-replay call: has stdin=dump_file
+        if "stdin" in kwargs and kwargs.get("stdin") is not None:
+            dump_replay_call_idx = idx
+
+    assert schema_reset_call_idx is not None, "schema-reset call with 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' not found"
+    assert dump_replay_call_idx is not None, "dump-replay call with stdin=dump_file not found"
+    assert schema_reset_call_idx < dump_replay_call_idx, "schema-reset call must occur before dump-replay call"
