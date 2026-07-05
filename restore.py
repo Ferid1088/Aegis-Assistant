@@ -34,6 +34,19 @@ def run_restore(backup_path: Path) -> None:
         extract_tar(decrypted_tar, extracted_dir)
 
         print("Restoring Postgres...")
+        # dump_postgres captures a plain-SQL pg_dump (CREATE TABLE + COPY, no
+        # --clean/--if-exists). Replaying that directly into a database that
+        # already has the same schema/rows (the normal in-place restore case)
+        # makes every CREATE TABLE/ADD CONSTRAINT statement fail with "already
+        # exists", and COPY rows collide on primary key -- psql doesn't abort on
+        # these errors by default, so the restore would appear to succeed while
+        # silently leaving the old (pre-restore) data in place. Dropping and
+        # recreating the public schema first gives the dump a clean target.
+        subprocess.run(
+            ["docker", "compose", "exec", "-T", "postgres", "psql", "-U", "postgres", "appliance",
+             "-c", "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"],
+            check=True,
+        )
         with open(extracted_dir / "postgres.dump", "rb") as dump_file:
             subprocess.run(
                 ["docker", "compose", "exec", "-T", "postgres", "psql", "-U", "postgres", "appliance"],
