@@ -14,7 +14,7 @@ from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.labels import DocItemLabel
 from langgraph.graph import END, START, StateGraph
 
-from convert_pdf import convert as convert_pdf
+from rag.convert_pdf import convert as convert_pdf
 from rag.config import settings
 from rag.domain.document_lifecycle import LogicalDocument, ProcessingState, resolve_identity
 from rag.llm.provider import get_embedder, get_sparse_embedder
