@@ -157,3 +157,40 @@ def test_request_erasure_purge_deletes_conversation_turns(db_session):
     conversation_service.request_erasure(db_session, conv)
 
     assert conversation_turn_service.list_recent_turns(db_session, conv.id, limit=10) == []
+
+
+def test_create_conversation_generates_real_keystore_key(db_session):
+    from rag.crosscutting.security import keystore
+    from rag.domain import conversation_service
+    from rag.storage.sql.models import User
+
+    user = User(username="alice")
+    db_session.add(user)
+    db_session.flush()
+
+    conv = conversation_service.create_conversation(db_session, user.id)
+
+    assert conv.encryption_key_id == f"conversation:{conv.id}"
+    key = keystore.get_or_create_key(db_session, conv.encryption_key_id)
+    assert len(key) > 0
+
+
+def test_request_erasure_purge_deletes_keystore_key(db_session):
+    from rag.crosscutting.security import keystore
+    from rag.domain import conversation_service
+    from rag.storage.sql.models import User
+
+    user = User(username="alice")
+    db_session.add(user)
+    db_session.flush()
+    conv = conversation_service.create_conversation(db_session, user.id)
+    purpose = conv.encryption_key_id
+    original_key = keystore.get_or_create_key(db_session, purpose)
+
+    conversation_service.transition_conversation(
+        db_session, conv, conversation_service.ConversationState.SOFT_DELETED,
+    )
+    conversation_service.request_erasure(db_session, conv)
+
+    new_key = keystore.get_or_create_key(db_session, purpose)
+    assert new_key != original_key

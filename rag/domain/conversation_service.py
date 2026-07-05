@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from rag.crosscutting.security import keystore
 from rag.domain.conversation import (
     Conversation as DomainConversation, ConversationState, resolve_erasure, transition as domain_transition,
 )
@@ -16,6 +17,10 @@ class ConversationNotFound(Exception):
 def create_conversation(db: Session, owner_id: uuid.UUID) -> Conversation:
     conv = Conversation(owner_id=owner_id, state=ConversationState.ACTIVE.value)
     db.add(conv)
+    db.commit()
+
+    conv.encryption_key_id = f"conversation:{conv.id}"
+    keystore.get_or_create_key(db, conv.encryption_key_id)
     db.commit()
     return conv
 
@@ -81,6 +86,8 @@ def request_erasure(db: Session, conv: Conversation) -> tuple[str, str]:
     if action == "purge":
         from rag.domain import conversation_turn_service
         conversation_turn_service.delete_all_for_conversation(db, conv.id)
+        if conv.encryption_key_id:
+            keystore.delete_key(db, conv.encryption_key_id)
         conv.state = ConversationState.PURGED.value
         conv.encryption_key_id = None
         db.commit()
