@@ -36,7 +36,6 @@ def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
 
     engine = create_engine(settings.database_url)
     Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
 
     try:
         install.run_install()
@@ -49,10 +48,10 @@ def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
         assert "POSTGRES_PASSWORD=" in env_contents
         assert "NEO4J_PASSWORD=" in env_contents
 
-        # -- migrations applied: the users/roles tables installer wrote into exist
-        # and are reachable via the real engine (Base.metadata tables created above
-        # are the pre-Alembic baseline; a real admin row below proves the schema
-        # installer actually operated against is usable end-to-end).
+        # -- migrations applied: install.run_install()'s own `alembic upgrade head`
+        # step is what creates the schema against this genuinely empty database
+        # (dropped above); a real admin row below proves the schema it created
+        # is usable end-to-end.
 
         session = sessionmaker(bind=engine)()
         try:
