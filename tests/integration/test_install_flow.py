@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from rag.bootstrap.env_writer import write_missing_env_vars
 from rag.bootstrap.first_admin import ADMIN_PERMISSIONS
 from rag.config import settings
 from rag.storage.sql import models  # noqa: F401
@@ -28,11 +29,20 @@ def _docker_available() -> bool:
 def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
     import install
 
-    monkeypatch.chdir(tmp_path)
     # install.py's write_missing_env_vars call uses a bare Path(".env"), which
-    # resolves relative to the current working directory -- monkeypatch.chdir
-    # above makes that land in tmp_path instead of the real repo's .env.
+    # resolves relative to the current working directory. We must NOT chdir the
+    # whole process to isolate that write: install.run_install() also shells out
+    # to `docker compose`, which resolves docker-compose.yml relative to cwd --
+    # chdir-ing the process would break docker compose's ability to find the
+    # real repo's compose file. Instead, redirect only the .env write itself to
+    # tmp_path, leaving the real working directory (and thus docker compose)
+    # alone.
     env_path = tmp_path / ".env"
+    monkeypatch.setattr(
+        install,
+        "write_missing_env_vars",
+        lambda _path, values: write_missing_env_vars(env_path, values),
+    )
 
     engine = create_engine(settings.database_url)
     Base.metadata.drop_all(engine)
