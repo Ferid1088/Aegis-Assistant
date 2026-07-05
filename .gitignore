@@ -1,5 +1,6 @@
 data/
 .env
+keys/update_signing_privkey.pem
 .venv/
 **/__pycache__/
 *.pyc
