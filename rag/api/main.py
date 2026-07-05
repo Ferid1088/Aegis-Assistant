@@ -1,12 +1,14 @@
 import uuid
 
 import structlog
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from rag.api.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
 from rag.api.routers import admin_audit, admin_rbac, admin_users, auth as auth_router, conversations, documents
+from rag.healthcheck import check_postgres
 from rag.observability.logging_config import configure_logging
 
 
@@ -28,6 +30,21 @@ def create_app() -> FastAPI:
             return response
         finally:
             structlog.contextvars.clear_contextvars()
+
+    @app.get("/healthz")
+    async def healthz():
+        return {"status": "ok"}
+
+    @app.get("/readyz")
+    async def readyz():
+        try:
+            check_postgres()
+        except Exception as exc:
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={"status": "not ready", "reason": str(exc)},
+            )
+        return {"status": "ready"}
 
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
