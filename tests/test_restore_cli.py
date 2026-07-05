@@ -6,12 +6,13 @@ _real_copytree = _real_shutil.copytree
 
 
 @patch("restore.subprocess.run")
+@patch("restore.shutil.copy2")
 @patch("restore.shutil.copytree")
 @patch("restore.extract_tar")
 @patch("restore.decrypt_archive")
 @patch("restore.SessionLocal")
 def test_run_restore_decrypts_extracts_and_restores_each_store(
-    mock_session_local, mock_decrypt, mock_extract, mock_copytree, mock_subprocess_run, tmp_path,
+    mock_session_local, mock_decrypt, mock_extract, mock_copytree, mock_copy2, mock_subprocess_run, tmp_path,
 ):
     mock_session_local.return_value = MagicMock()
 
@@ -35,6 +36,7 @@ def test_run_restore_decrypts_extracts_and_restores_each_store(
 
     mock_decrypt.assert_called_once()
     mock_extract.assert_called_once()
+    assert mock_copy2.called
     assert any(
         c == call(["docker", "compose", "stop", "neo4j"], check=True)
         for c in mock_subprocess_run.call_args_list
