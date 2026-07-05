@@ -1,4 +1,4 @@
-from rag.bootstrap.env_writer import write_missing_env_vars
+from rag.bootstrap.env_writer import read_env_value, write_missing_env_vars
 
 
 def test_writes_all_values_to_a_fresh_file(tmp_path):
@@ -44,3 +44,26 @@ def test_ignores_commented_out_keys(tmp_path):
 
     assert written == ["FOO"]
     assert "FOO=real-value" in env_path.read_text()
+
+
+def test_read_env_value_returns_none_for_missing_file(tmp_path):
+    env_path = tmp_path / ".env"
+    assert read_env_value(env_path, "FOO") is None
+
+
+def test_read_env_value_returns_none_for_missing_key(tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("FOO=bar\n")
+    assert read_env_value(env_path, "BAZ") is None
+
+
+def test_read_env_value_returns_the_value(tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("FOO=bar\nBAZ=qux\n")
+    assert read_env_value(env_path, "BAZ") == "qux"
+
+
+def test_read_env_value_ignores_commented_out_lines(tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("# FOO=commented-out\nFOO=real-value\n")
+    assert read_env_value(env_path, "FOO") == "real-value"

@@ -7,12 +7,13 @@ because a prior run already completed that step.
 import subprocess
 from pathlib import Path
 
-from rag.bootstrap.env_writer import write_missing_env_vars
+from rag.bootstrap.env_writer import read_env_value, write_missing_env_vars
 from rag.bootstrap.first_admin import ensure_first_admin
 from rag.bootstrap.prereqs import check_docker, check_gpu, check_ram
 from rag.bootstrap.secrets_gen import (
     generate_jwt_secret, generate_keystore_master_key, generate_neo4j_password, generate_postgres_password,
 )
+from rag.config import settings
 from rag.healthcheck import main as healthcheck_main
 from rag.storage.sql.base import SessionLocal
 
@@ -26,7 +27,8 @@ def run_install() -> None:
     check_gpu()
 
     print("== Generating secrets ==")
-    written = write_missing_env_vars(Path(".env"), {
+    env_path = Path(".env")
+    written = write_missing_env_vars(env_path, {
         "JWT_SECRET_KEY": generate_jwt_secret(),
         "KEYSTORE_MASTER_KEY": generate_keystore_master_key(),
         "POSTGRES_PASSWORD": generate_postgres_password(),
@@ -37,6 +39,14 @@ def run_install() -> None:
         print(f"Generated: {', '.join(written)}")
     else:
         print("All secrets already present, nothing generated.")
+
+    # Sync the in-process settings singleton with whatever NEO4J_PASSWORD actually
+    # ended up in .env (freshly generated above, or already present from a prior
+    # run) -- `settings` was constructed at module import time, before this run's
+    # secrets existed, so without this it would still hold the stale default while
+    # the Neo4j container (created fresh from this same .env, next step) uses the
+    # real value.
+    settings.neo4j_password = read_env_value(env_path, "NEO4J_PASSWORD") or settings.neo4j_password
 
     print("== Starting services ==")
     subprocess.run(["docker", "compose", "up", "-d"], check=True)

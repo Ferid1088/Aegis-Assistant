@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from rag.bootstrap.env_writer import write_missing_env_vars
+from rag.bootstrap.env_writer import read_env_value, write_missing_env_vars
 from rag.bootstrap.first_admin import ADMIN_PERMISSIONS
 from rag.config import settings
 from rag.storage.sql import models  # noqa: F401
@@ -43,6 +43,13 @@ def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
         "write_missing_env_vars",
         lambda _path, values: write_missing_env_vars(env_path, values),
     )
+    monkeypatch.setattr(
+        install,
+        "read_env_value",
+        lambda _path, key: read_env_value(env_path, key),
+    )
+
+    original_neo4j_password = settings.neo4j_password
 
     engine = create_engine(settings.database_url)
     Base.metadata.drop_all(engine)
@@ -57,6 +64,12 @@ def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
         assert "KEYSTORE_MASTER_KEY=" in env_contents
         assert "POSTGRES_PASSWORD=" in env_contents
         assert "NEO4J_PASSWORD=" in env_contents
+
+        neo4j_password_line = next(
+            line for line in env_contents.splitlines() if line.startswith("NEO4J_PASSWORD=")
+        )
+        expected_neo4j_password = neo4j_password_line.split("=", 1)[1]
+        assert settings.neo4j_password == expected_neo4j_password
 
         # -- migrations applied: install.run_install()'s own `alembic upgrade head`
         # step is what creates the schema against this genuinely empty database
@@ -101,5 +114,6 @@ def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
     finally:
         # Leave the shared Postgres database empty so other tests/tasks that reuse
         # it are not tripped up by a stray admin user from this run.
+        settings.neo4j_password = original_neo4j_password
         Base.metadata.drop_all(engine)
         engine.dispose()

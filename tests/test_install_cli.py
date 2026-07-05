@@ -74,3 +74,34 @@ def test_run_install_writes_redis_url(
 
     written_values = mock_write_env.call_args.args[1]
     assert "REDIS_URL" in written_values
+
+
+@patch("install.read_env_value")
+@patch("install.healthcheck_main")
+@patch("install.ensure_first_admin")
+@patch("install.SessionLocal")
+@patch("install.run_store_migrate")
+@patch("install.subprocess.run")
+@patch("install.write_missing_env_vars")
+@patch("install.check_gpu")
+@patch("install.check_ram")
+@patch("install.check_docker")
+def test_run_install_syncs_in_process_neo4j_password_from_env(
+    mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
+    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
+    mock_healthcheck, mock_read_env_value,
+):
+    from rag.config import settings
+    original_neo4j_password = settings.neo4j_password
+    try:
+        mock_session_local.return_value = MagicMock()
+        mock_ensure_admin.return_value = None
+        mock_read_env_value.return_value = "freshly-generated-secret"
+
+        import install
+        install.run_install()
+
+        mock_read_env_value.assert_called_once()
+        assert settings.neo4j_password == "freshly-generated-secret"
+    finally:
+        settings.neo4j_password = original_neo4j_password
