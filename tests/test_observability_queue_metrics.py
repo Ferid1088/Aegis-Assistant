@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, patch
 
 
-@patch("rag.observability.queue_metrics.settings.redis_url", "redis://localhost:6379")
 @patch("rag.observability.queue_metrics.redis.Redis.from_url")
 def test_update_queue_depth_reflects_the_real_llen(mock_from_url):
     from rag.observability.queue_metrics import QUEUE_DEPTH, _update_queue_depth

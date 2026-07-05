@@ -16,21 +16,9 @@ QUEUE_DEPTH = Gauge("celery_queue_depth", "Number of pending tasks in the Celery
 
 _QUEUE_NAME = "celery"  # Celery's default queue name when none is explicitly configured
 
-# Lazily initialized on first call to _update_queue_depth
-_redis_client = None
-
-
-def _get_redis_client():
-    global _redis_client
-    if _redis_client is None:
-        _redis_client = redis.Redis.from_url(settings.redis_url)
-    return _redis_client
-
 
 def _update_queue_depth() -> None:
-    if not settings.redis_url:
-        return
-    client = _get_redis_client()
+    client = redis.Redis.from_url(settings.redis_url)
     QUEUE_DEPTH.set_function(lambda: client.llen(_QUEUE_NAME))
 
 
