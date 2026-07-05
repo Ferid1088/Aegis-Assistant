@@ -54,12 +54,20 @@ def run_restore(backup_path: Path) -> None:
             )
 
         print("Restoring Qdrant...")
-        shutil.copytree(extracted_dir / "qdrant", Path("data/qdrant"), dirs_exist_ok=True)
+        # rmtree the destination first so the restore *replaces* the live
+        # directory rather than merging into it -- copytree(dirs_exist_ok=True)
+        # would leave files present live but absent from the backup untouched,
+        # which for Qdrant/Neo4j can mix newer segment/index files with
+        # restored-but-older ones and silently corrupt the store. Same
+        # "clean target before replay" principle as the Postgres schema reset.
+        shutil.rmtree(Path("data/qdrant"), ignore_errors=True)
+        shutil.copytree(extracted_dir / "qdrant", Path("data/qdrant"))
 
         print("Stopping Neo4j to restore its data...")
         subprocess.run(["docker", "compose", "stop", "neo4j"], check=True)
         try:
-            shutil.copytree(extracted_dir / "neo4j", Path("data/neo4j"), dirs_exist_ok=True)
+            shutil.rmtree(Path("data/neo4j"), ignore_errors=True)
+            shutil.copytree(extracted_dir / "neo4j", Path("data/neo4j"))
         finally:
             print("Restarting Neo4j...")
             subprocess.run(["docker", "compose", "start", "neo4j"], check=True)
@@ -67,7 +75,8 @@ def run_restore(backup_path: Path) -> None:
         print("Restoring SQLite files and audit log...")
         shutil.copy2(extracted_dir / "documents.db", Path("data/documents.db"))
         shutil.copy2(extracted_dir / "observability.db", Path("data/observability.db"))
-        shutil.copytree(extracted_dir / "audit", Path("data/audit"), dirs_exist_ok=True)
+        shutil.rmtree(Path("data/audit"), ignore_errors=True)
+        shutil.copytree(extracted_dir / "audit", Path("data/audit"))
 
         progression_rules_path = extracted_dir / "progression_rules.json"
         if progression_rules_path.exists():
