@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "app"
+    static_configs:
+      - targets: ["app:8000"]
+
+  - job_name: "worker"
+    static_configs:
+      - targets: ["worker:9540"]
+
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["node_exporter:9100"]
+
+  # dcgm-exporter (Task 11's GPU overlay) isn't running unless that overlay is
+  # explicitly enabled on a real NVIDIA host -- Prometheus scraping a down target
+  # is non-fatal (it just shows as "down" on Prometheus's own /targets page), so
+  # this entry is safe to leave in the base config permanently rather than needing
+  # a separate GPU-specific Prometheus config file to merge in.
+  - job_name: "dcgm_exporter"
+    static_configs:
+      - targets: ["dcgm-exporter:9400"]

@@ -49,5 +49,30 @@ services:
       - ./data:/app/data
       - hf_models:/models/hf
 
+  node_exporter:
+    image: prom/node-exporter:latest
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+    ports: ["9100:9100"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports: ["9090:9090"]
+    depends_on:
+      - app
+      - worker
+      - node_exporter
+
 volumes:
   hf_models:
+  prometheus_data:
