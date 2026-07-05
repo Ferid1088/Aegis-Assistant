@@ -92,5 +92,7 @@ class Settings(BaseSettings):
     # Audit log directory (existing AuditLog, extended with auth/RBAC events)
     audit_log_dir: str = "data/audit"
 
+    backup_retention_count: int = 7
+
 
 settings = Settings()

@@ -11,3 +11,4 @@ docs/
 .claude/
 *.egg-info/
 .DS_Store
+backups/
