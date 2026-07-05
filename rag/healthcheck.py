@@ -1,5 +1,16 @@
+from sqlalchemy import text
+
 from rag.config import settings
 from rag.llm.provider import get_llm, get_embedder, get_device
+from rag.storage.sql.base import SessionLocal
+
+
+def check_postgres() -> None:
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+    finally:
+        db.close()
 
 
 def main():
@@ -21,6 +32,9 @@ def main():
     from rag.storage.document_store import SQLiteDocumentStore
     SQLiteDocumentStore()
     print("✅ SQLite OK")
+
+    check_postgres()
+    print("✅ Postgres OK")
 
     print("\n🎉 Foundation stands.")
 
