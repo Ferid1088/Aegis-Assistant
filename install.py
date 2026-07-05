@@ -31,6 +31,11 @@ def run_install() -> None:
     written = write_missing_env_vars(env_path, {
         "JWT_SECRET_KEY": generate_jwt_secret(),
         "KEYSTORE_MASTER_KEY": generate_keystore_master_key(),
+        # Unlike NEO4J_PASSWORD below, this is written but not yet consumed anywhere --
+        # docker-compose.yml's postgres service and rag/config.py's database_url both
+        # stay on the hardcoded dev-default password. Wiring this up properly needs a
+        # lazy-rebuildable SQLAlchemy engine (rag/storage/sql/base.py, also depended on
+        # by rag/healthcheck.py), deferred to a future security-hardening pass.
         "POSTGRES_PASSWORD": generate_postgres_password(),
         "NEO4J_PASSWORD": generate_neo4j_password(),
         "REDIS_URL": "redis://redis:6379",
