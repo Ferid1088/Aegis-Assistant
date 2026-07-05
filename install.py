@@ -31,6 +31,7 @@ def run_install() -> None:
         "KEYSTORE_MASTER_KEY": generate_keystore_master_key(),
         "POSTGRES_PASSWORD": generate_postgres_password(),
         "NEO4J_PASSWORD": generate_neo4j_password(),
+        "REDIS_URL": "redis://redis:6379",
     })
     if written:
         print(f"Generated: {', '.join(written)}")
