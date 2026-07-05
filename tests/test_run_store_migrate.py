@@ -75,6 +75,30 @@ def test_migrate_store_returns_true_and_prints_up_to_date_when_nothing_applied(c
     assert "already up to date" in out
 
 
+def test_migrate_store_retries_on_transient_failure_then_succeeds():
+    db = MagicMock()
+    store_factory = MagicMock(side_effect=[ConnectionError("not ready"), ConnectionError("not ready"), MagicMock()])
+
+    with patch("run_store_migrate.apply_pending", return_value=0), patch("run_store_migrate.time.sleep") as mock_sleep:
+        result = _migrate_store(db, "neo4j", store_factory, [], max_attempts=5, retry_delay=0.01)
+
+    assert result is True
+    assert store_factory.call_count == 3
+    assert mock_sleep.call_count == 2
+
+
+def test_migrate_store_gives_up_after_max_attempts():
+    db = MagicMock()
+    store_factory = MagicMock(side_effect=ConnectionError("still not ready"))
+
+    with patch("run_store_migrate.time.sleep") as mock_sleep:
+        result = _migrate_store(db, "neo4j", store_factory, [], max_attempts=3, retry_delay=0.01)
+
+    assert result is False
+    assert store_factory.call_count == 3
+    assert mock_sleep.call_count == 2
+
+
 def test_main_attempts_neo4j_even_when_qdrant_construction_fails_and_exits_nonzero():
     """End-to-end sanity check on main(): both stores are always attempted, and a
     single failure causes a non-zero exit — without asserting real DB/store wiring."""
@@ -83,7 +107,8 @@ def test_main_attempts_neo4j_even_when_qdrant_construction_fails_and_exits_nonze
     with patch("run_store_migrate.SessionLocal") as mock_session_local, \
          patch("run_store_migrate.QdrantVectorStore", side_effect=RuntimeError("qdrant down")) as mock_qdrant, \
          patch("run_store_migrate.Neo4jGraphStore") as mock_neo4j, \
-         patch("run_store_migrate.apply_pending", return_value=[1]):
+         patch("run_store_migrate.apply_pending", return_value=[1]), \
+         patch("run_store_migrate.time.sleep"):
         mock_session_local.return_value = MagicMock()
 
         from run_store_migrate import main
@@ -92,5 +117,5 @@ def test_main_attempts_neo4j_even_when_qdrant_construction_fails_and_exits_nonze
             main()
 
     assert exc_info.value.code == 1
-    mock_qdrant.assert_called_once()
+    assert mock_qdrant.call_count == 10  # retried 10 times (default max_attempts)
     mock_neo4j.assert_called_once()  # neo4j is still attempted despite qdrant failing
