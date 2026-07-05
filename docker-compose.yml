@@ -26,10 +26,14 @@ services:
 
   worker:
     build: .
-    command: celery -A rag.worker.celery_app worker --loglevel=info --concurrency=2
+    command: uv run celery -A rag.worker.celery_app worker --loglevel=info --concurrency=2
     env_file: .env
     depends_on:
       - redis
       - postgres
     volumes:
       - ./data:/app/data
+      - hf_models:/models/hf
+
+volumes:
+  hf_models:
