@@ -139,3 +139,34 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
+
+  trivy-scan:
+    needs: unit-tests
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the app image
+        run: docker build -t rag-appliance-app:ci .
+
+      - name: Trivy scan (full report, all severities, non-blocking)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rag-appliance-app:ci
+          format: table
+          output: trivy-report.txt
+          exit-code: "0"
+
+      - name: Upload full Trivy report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.txt
+
+      - name: Trivy scan (CRITICAL only, blocking)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rag-appliance-app:ci
+          severity: CRITICAL
+          exit-code: "1"
