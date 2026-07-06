@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import uuid
 
 from rag.graphs.query import build_query_graph
 
@@ -17,7 +18,20 @@ def main():
     if args.doc_filter:
         state["doc_filter"] = json.loads(args.doc_filter)
 
-    result = graph.invoke(state)
+    # build_query_graph() always compiles with a checkpointer attached
+    # (rag/graphs/query.py's _make_checkpointer(), InMemorySaver or
+    # SqliteSaver) -- LangGraph requires a configurable.thread_id (or
+    # checkpoint_ns/checkpoint_id) on every .invoke() once a checkpointer is
+    # present, or it raises ValueError("Checkpointer requires one or more of
+    # the following 'configurable' keys..."). This is a one-shot CLI
+    # invocation (no cross-turn state to preserve, unlike the real API route
+    # which reuses a conversation_id across turns), so a fresh unique
+    # thread_id per invocation is enough to satisfy the requirement without
+    # colliding with other invocations on shared checkpointer state. Same fix
+    # already applied to eval/run_eval.py for the identical reason.
+    result = graph.invoke(
+        state, config={"configurable": {"thread_id": str(uuid.uuid4())}},
+    )
 
     print("\n" + "=" * 60)
     print("ANSWER:")
