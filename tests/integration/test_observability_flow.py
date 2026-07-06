@@ -4,9 +4,12 @@ GlitchTip is checked separately below, given the acknowledged uncertainty in Tas
 Run with: uv run pytest tests/integration/test_observability_flow.py -v -s
 """
 import subprocess
+from pathlib import Path
 
 import httpx
 import pytest
+
+from rag.bootstrap.env_writer import read_env_value
 
 
 def _docker_available() -> bool:
@@ -15,6 +18,14 @@ def _docker_available() -> bool:
         return True
     except Exception:
         return False
+
+
+def _grafana_admin_password() -> str:
+    # docker-compose.yml wires GF_SECURITY_ADMIN_PASSWORD to
+    # ${GRAFANA_ADMIN_PASSWORD:-admin} -- install.py always writes a real generated
+    # secret to .env (see rag/bootstrap/secrets_gen.py), so a hardcoded "admin"
+    # only matches compose's own fallback default, never a real installed appliance.
+    return read_env_value(Path(".env"), "GRAFANA_ADMIN_PASSWORD") or "admin"
 
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")
@@ -56,7 +67,7 @@ def test_glitchtip_database_exists():
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")
 def test_grafana_loaded_the_provisioned_dashboards():
-    resp = httpx.get("http://localhost:3000/api/search", auth=("admin", "admin"), timeout=5)
+    resp = httpx.get("http://localhost:3000/api/search", auth=("admin", _grafana_admin_password()), timeout=5)
     assert resp.status_code == 200
     titles = {d["title"] for d in resp.json()}
     assert {"API Metrics", "Celery Queue Depth", "Host Metrics"}.issubset(titles)

@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 
 from rag.backup.archive import decrypt_archive, extract_tar
+from rag.bootstrap.wait_for_neo4j import wait_for_neo4j_ready
 from rag.storage.sql.base import SessionLocal
 
 
@@ -71,6 +72,9 @@ def run_restore(backup_path: Path) -> None:
         finally:
             print("Restarting Neo4j...")
             subprocess.run(["docker", "compose", "start", "neo4j"], check=True)
+            # See rag/backup/capture.py's dump_neo4j: `start` returns before Neo4j
+            # (a JVM app) is actually accepting Bolt connections again.
+            wait_for_neo4j_ready()
 
         print("Restoring SQLite files and audit log...")
         shutil.copy2(extracted_dir / "documents.db", Path("data/documents.db"))

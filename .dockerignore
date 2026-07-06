@@ -1,0 +1,14 @@
+.git/
+data/
+.env
+keys/update_signing_privkey.pem
+.venv/
+**/__pycache__/
+*.pyc
+.DS_Store
+.worktrees/
+.pytest_cache/
+.superpowers/
+.claude/
+*.egg-info/
+backups/

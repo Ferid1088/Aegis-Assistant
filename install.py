@@ -15,6 +15,7 @@ from rag.bootstrap.secrets_gen import (
     generate_glitchtip_secret_key, generate_grafana_admin_password, generate_jwt_secret, generate_keystore_master_key,
     generate_neo4j_password, generate_postgres_password,
 )
+from rag.bootstrap.wait_for_postgres import wait_for_postgres_ready
 from rag.config import settings
 from rag.healthcheck import main as healthcheck_main
 from rag.storage.sql.base import SessionLocal
@@ -59,6 +60,10 @@ def run_install() -> None:
 
     print("== Starting services ==")
     subprocess.run(["docker", "compose", "up", "-d"], check=True)
+
+    # `up -d` returns once containers are started, not once postgres has finished
+    # its first-run initdb bootstrap -- wait for it before anything execs into it.
+    wait_for_postgres_ready()
 
     ensure_glitchtip_database()
 

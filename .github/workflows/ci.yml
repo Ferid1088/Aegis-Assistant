@@ -24,3 +24,44 @@ jobs:
 
       - name: Run unit tests
         run: uv run pytest tests/ -q --ignore=tests/integration
+
+  integration-tests:
+    needs: unit-tests
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      # This job doesn't set up Ollama/vLLM (that stack is heavy and only the
+      # eval/upload-and-chat job needs it) -- skip the LLM round-trip in
+      # install.py's post-bootstrap healthcheck so it doesn't fail for a reason
+      # unrelated to what this job actually verifies. Job-level (not just the
+      # Bootstrap step below) because tests/integration/test_install_flow.py
+      # also calls install.run_install() directly, in-process, during the pytest
+      # step -- that call needs this too, or it hits the same real LLM round-trip.
+      SKIP_LLM_HEALTHCHECK: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Bootstrap the real stack (secrets, docker compose up, migrations, first admin, healthcheck)
+        run: uv run python install.py
+
+      - name: Run Docker-backed integration tests
+        run: uv run pytest tests/integration --ignore=tests/integration/test_upload_and_chat_flow.py -v -s
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

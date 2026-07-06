@@ -31,9 +31,10 @@ def test_copy_qdrant_copies_configured_path(mock_settings, mock_copytree, tmp_pa
     mock_copytree.assert_called_once_with(Path("/fake/qdrant/path"), dest, dirs_exist_ok=True)
 
 
+@patch("rag.backup.capture.wait_for_neo4j_ready")
 @patch("rag.backup.capture.shutil.copytree")
 @patch("rag.backup.capture.subprocess.run")
-def test_dump_neo4j_stops_copies_then_restarts(mock_run, mock_copytree, tmp_path):
+def test_dump_neo4j_stops_copies_then_restarts(mock_run, mock_copytree, mock_wait_ready, tmp_path):
     dest = tmp_path / "neo4j_copy"
 
     dump_neo4j(dest)
@@ -43,11 +44,13 @@ def test_dump_neo4j_stops_copies_then_restarts(mock_run, mock_copytree, tmp_path
         call(["docker", "compose", "start", "neo4j"], check=True),
     ]
     mock_copytree.assert_called_once()
+    mock_wait_ready.assert_called_once()
 
 
+@patch("rag.backup.capture.wait_for_neo4j_ready")
 @patch("rag.backup.capture.shutil.copytree")
 @patch("rag.backup.capture.subprocess.run")
-def test_dump_neo4j_restarts_even_if_copy_fails(mock_run, mock_copytree, tmp_path):
+def test_dump_neo4j_restarts_even_if_copy_fails(mock_run, mock_copytree, mock_wait_ready, tmp_path):
     mock_copytree.side_effect = OSError("disk full")
     dest = tmp_path / "neo4j_copy"
 
@@ -57,6 +60,7 @@ def test_dump_neo4j_restarts_even_if_copy_fails(mock_run, mock_copytree, tmp_pat
         pass
 
     assert call(["docker", "compose", "start", "neo4j"], check=True) in mock_run.call_args_list
+    mock_wait_ready.assert_called_once()
 
 
 @patch("rag.backup.capture.subprocess.run")
@@ -73,10 +77,27 @@ def test_backup_sqlite_file_runs_sqlite3_backup_command(mock_run, tmp_path):
 
 @patch("rag.backup.capture.shutil.copytree")
 @patch("rag.backup.capture.settings")
-def test_copy_audit_log_copies_configured_dir(mock_settings, mock_copytree, tmp_path):
-    mock_settings.audit_log_dir = "data/audit"
+def test_copy_audit_log_copies_configured_dir_when_it_exists(mock_settings, mock_copytree, tmp_path):
+    audit_dir = tmp_path / "audit"
+    audit_dir.mkdir()
+    mock_settings.audit_log_dir = str(audit_dir)
     dest = tmp_path / "audit_copy"
 
     copy_audit_log(dest)
 
-    mock_copytree.assert_called_once_with(Path("data/audit"), dest, dirs_exist_ok=True)
+    mock_copytree.assert_called_once_with(audit_dir, dest, dirs_exist_ok=True)
+
+
+@patch("rag.backup.capture.shutil.copytree")
+@patch("rag.backup.capture.settings")
+def test_copy_audit_log_writes_empty_dir_when_source_never_existed(mock_settings, mock_copytree, tmp_path):
+    # A fresh appliance backed up before its first audit-worthy event has no
+    # data/audit directory yet (see AuditLog.__init__) -- copy_audit_log must not
+    # error in that case, just leave an empty destination.
+    mock_settings.audit_log_dir = str(tmp_path / "audit-never-created")
+    dest = tmp_path / "audit_copy"
+
+    copy_audit_log(dest)
+
+    mock_copytree.assert_not_called()
+    assert dest.is_dir()

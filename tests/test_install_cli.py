@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 
+@patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
 @patch("install.ensure_first_admin")
 @patch("install.SessionLocal")
@@ -13,6 +14,7 @@ from unittest.mock import MagicMock, patch
 def test_run_install_calls_all_steps_in_order(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
     mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_wait_for_postgres,
 ):
     mock_session_local.return_value = MagicMock()
     mock_ensure_admin.return_value = ("admin", "generated-password")
@@ -25,11 +27,13 @@ def test_run_install_calls_all_steps_in_order(
     mock_check_gpu.assert_called_once()
     mock_write_env.assert_called_once()
     assert mock_subprocess_run.call_count >= 2  # docker compose up -d, alembic upgrade head (run_store_migrate is a direct call, not subprocess)
+    mock_wait_for_postgres.assert_called_once()
     mock_run_store_migrate.main.assert_called_once()
     mock_ensure_admin.assert_called_once()
     mock_healthcheck.assert_called_once()
 
 
+@patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
 @patch("install.ensure_first_admin")
 @patch("install.SessionLocal")
@@ -41,7 +45,8 @@ def test_run_install_calls_all_steps_in_order(
 @patch("install.check_docker")
 def test_run_install_prints_credentials_only_when_admin_created(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck, capsys,
+    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_wait_for_postgres, capsys,
 ):
     mock_session_local.return_value = MagicMock()
     mock_ensure_admin.return_value = None  # admin already existed
@@ -53,6 +58,7 @@ def test_run_install_prints_credentials_only_when_admin_created(
     assert "SAVE THIS NOW" not in captured.out
 
 
+@patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
 @patch("install.ensure_first_admin")
 @patch("install.SessionLocal")
@@ -65,6 +71,7 @@ def test_run_install_prints_credentials_only_when_admin_created(
 def test_run_install_writes_redis_url(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
     mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_wait_for_postgres,
 ):
     mock_session_local.return_value = MagicMock()
     mock_ensure_admin.return_value = None
@@ -77,6 +84,7 @@ def test_run_install_writes_redis_url(
 
 
 @patch("install.read_env_value")
+@patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
 @patch("install.ensure_first_admin")
 @patch("install.SessionLocal")
@@ -89,7 +97,7 @@ def test_run_install_writes_redis_url(
 def test_run_install_syncs_in_process_neo4j_password_from_env(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
     mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
-    mock_healthcheck, mock_read_env_value,
+    mock_healthcheck, mock_wait_for_postgres, mock_read_env_value,
 ):
     from rag.config import settings
     original_neo4j_password = settings.neo4j_password
@@ -108,6 +116,7 @@ def test_run_install_syncs_in_process_neo4j_password_from_env(
 
 
 @patch("install.ensure_glitchtip_database")
+@patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
 @patch("install.ensure_first_admin")
 @patch("install.SessionLocal")
@@ -120,7 +129,7 @@ def test_run_install_syncs_in_process_neo4j_password_from_env(
 def test_run_install_creates_glitchtip_database_and_writes_its_secret(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
     mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
-    mock_healthcheck, mock_ensure_glitchtip_db,
+    mock_healthcheck, mock_wait_for_postgres, mock_ensure_glitchtip_db,
 ):
     mock_session_local.return_value = MagicMock()
     mock_ensure_admin.return_value = None
@@ -134,6 +143,7 @@ def test_run_install_creates_glitchtip_database_and_writes_its_secret(
 
 
 @patch("install.ensure_glitchtip_database")
+@patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
 @patch("install.ensure_first_admin")
 @patch("install.SessionLocal")
@@ -146,7 +156,7 @@ def test_run_install_creates_glitchtip_database_and_writes_its_secret(
 def test_run_install_writes_grafana_admin_password(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
     mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
-    mock_healthcheck, mock_ensure_glitchtip_db,
+    mock_healthcheck, mock_wait_for_postgres, mock_ensure_glitchtip_db,
 ):
     mock_session_local.return_value = MagicMock()
     mock_ensure_admin.return_value = None

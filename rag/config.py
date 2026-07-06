@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     llm_model: str = "qwen2.5:7b"
     extraction_model: str = "qwen2.5:7b"
 
+    # Lets install.py/update.py's post-bootstrap healthcheck skip the LLM round-trip --
+    # for CI jobs that intentionally don't set up Ollama/vLLM (that stack is heavy and
+    # only the eval/upload-and-chat job needs it), a stack with no LLM backend running
+    # is still "genuinely up" for every other purpose install.py verifies.
+    skip_llm_healthcheck: bool = False
+
     device: str = ""
 
     dense_embedding_model: str = "BAAI/bge-m3"

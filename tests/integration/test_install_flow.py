@@ -6,14 +6,13 @@ Run with: uv run pytest tests/integration/test_install_flow.py -v -s
 import subprocess
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from rag.bootstrap.env_writer import write_missing_env_vars
 from rag.bootstrap.first_admin import ADMIN_PERMISSIONS
 from rag.config import settings
 from rag.storage.sql import models  # noqa: F401
-from rag.storage.sql.base import Base
 from rag.storage.sql.models import Role, RolePermission, User, UserRole
 
 
@@ -23,6 +22,25 @@ def _docker_available() -> bool:
         return True
     except Exception:
         return False
+
+
+def _reset_schema(engine) -> None:
+    """Drops every table, however it was created.
+
+    `Base.metadata.drop_all()` only drops tables declared through the ORM's
+    Base -- it leaves behind both Alembic's own `alembic_version` tracking table
+    and any table an Alembic migration created directly via raw `op.create_table`
+    (e.g. `store_schema_versions`), since neither is part of Base.metadata. Left
+    behind, either one makes a subsequent `alembic upgrade head` fail: an
+    up-to-date `alembic_version` makes it no-op entirely, and a survived
+    `store_schema_versions` makes migration 0004 fail with "already exists" even
+    when it does run. Dropping and recreating the whole `public` schema (the same
+    "clean target before replay" idiom restore.py already uses for exactly this
+    reason) is the only way to actually reproduce "a genuinely empty database".
+    """
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
 
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")
@@ -45,7 +63,7 @@ def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
     )
 
     engine = create_engine(settings.database_url)
-    Base.metadata.drop_all(engine)
+    _reset_schema(engine)
 
     try:
         install.run_install()
@@ -101,5 +119,5 @@ def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
     finally:
         # Leave the shared Postgres database empty so other tests/tasks that reuse
         # it are not tripped up by a stray admin user from this run.
-        Base.metadata.drop_all(engine)
+        _reset_schema(engine)
         engine.dispose()

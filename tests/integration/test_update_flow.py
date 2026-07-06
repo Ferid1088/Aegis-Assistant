@@ -9,8 +9,10 @@ Run with: uv run pytest tests/integration/test_update_flow.py -v -s
 import subprocess
 
 import pytest
+from sqlalchemy import create_engine, text
 
 from generate_signing_keypair import generate_keypair
+from rag.config import settings
 from rag.update.version_state import read_version_state, write_version_state
 from sign_bundle import sign_bundle
 
@@ -21,6 +23,30 @@ def _docker_available() -> bool:
         return True
     except Exception:
         return False
+
+
+def _reset_schema() -> None:
+    """Drops and recreates the whole `public` schema, then migrates it to head --
+    i.e. establishes exactly the state a real, already-installed appliance would be
+    in right before an update, not an empty database.
+
+    Other integration test files in this suite reset Postgres state with
+    `Base.metadata.drop_all()`/`create_all()` (ORM-only, no Alembic tracking) or
+    leave rows/tables behind for the next test -- whichever ran immediately before
+    this one, this test needs a genuinely consistent, fully-migrated starting
+    point, not whatever partial state a same-session neighbor happened to leave
+    (see tests/integration/test_install_flow.py's `_reset_schema` for the same
+    "drop and recreate the whole schema" fix, applied there first). `update.run_update()`
+    itself takes a pre-update *backup* before touching migrations at all, and that
+    backup needs `keystore_keys` (and every other app table) to already exist --
+    an empty schema is not a valid starting point for this particular test.
+    """
+    engine = create_engine(settings.database_url)
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+    engine.dispose()
+    subprocess.run(["alembic", "upgrade", "head"], check=True)
 
 
 def _build_tiny_test_image(tag: str) -> None:
@@ -53,6 +79,8 @@ def test_update_then_rollback_round_trip(tmp_path, monkeypatch):
     import build_bundle
     import rollback
     import update
+
+    _reset_schema()
 
     # Two updates, not one: rolling back the very first-ever update is a narrower
     # edge case (there's no prior *bundle* image to retag to -- version 0 was built

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, call, patch
 _real_copytree = _real_shutil.copytree
 
 
+@patch("restore.wait_for_neo4j_ready")
 @patch("restore.subprocess.run")
 @patch("restore.shutil.rmtree")
 @patch("restore.shutil.copy2")
@@ -13,7 +14,8 @@ _real_copytree = _real_shutil.copytree
 @patch("restore.decrypt_archive")
 @patch("restore.SessionLocal")
 def test_run_restore_decrypts_extracts_and_restores_each_store(
-    mock_session_local, mock_decrypt, mock_extract, mock_copytree, mock_copy2, mock_rmtree, mock_subprocess_run, tmp_path,
+    mock_session_local, mock_decrypt, mock_extract, mock_copytree, mock_copy2, mock_rmtree, mock_subprocess_run,
+    mock_wait_ready, tmp_path,
 ):
     mock_session_local.return_value = MagicMock()
 
