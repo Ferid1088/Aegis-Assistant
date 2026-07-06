@@ -13,7 +13,14 @@ celery_app.conf.task_serializer = "json"
 celery_app.conf.result_serializer = "json"
 celery_app.conf.accept_content = ["json"]
 celery_app.autodiscover_tasks(["rag.worker"])
-start_queue_depth_exporter()
+
+
+def _maybe_start_queue_depth_exporter() -> None:
+    if settings.redis_url:
+        start_queue_depth_exporter()
+
+
+_maybe_start_queue_depth_exporter()
 
 
 @task_prerun.connect
