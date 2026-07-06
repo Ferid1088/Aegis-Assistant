@@ -91,10 +91,18 @@ services:
     depends_on:
       - redis
       - postgres
-    ports: ["8000:8000"]
     volumes:
       - ./data:/app/data
       - hf_models:/models/hf
+
+  nginx:
+    image: nginx:latest
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
 
   node_exporter:
     image: prom/node-exporter:latest
