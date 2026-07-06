@@ -26,6 +26,7 @@ from rag.crosscutting.observability.tracing import traced
 from rag.crosscutting.security.acl import acl_filter, live_recheck, log_retrieval_audit, type_filter
 from rag.llm.provider import get_device, get_llm
 from rag.models import RetrievedChunk
+from rag.storage.vector_store import get_shared_vector_store
 
 
 class QueryState(TypedDict):
@@ -101,7 +102,16 @@ _checkpointer = _make_checkpointer()
 def _get_search() -> SearchService:
     global _search
     if _search is None:
-        _search = SearchService()
+        # Explicitly pass the process-wide shared QdrantVectorStore (rather than
+        # letting SearchService lazily create its own private one) so this
+        # query-side singleton and rag/graphs/ingestion.py's write-side singleton
+        # never independently open a second handle on the same embedded Qdrant
+        # storage -- see get_shared_vector_store()'s docstring for the
+        # RuntimeError("...already accessed by another instance...") that used
+        # to cause whenever a single process (e.g.
+        # tests/integration/test_upload_and_chat_flow.py, via Celery's eager
+        # mode) did both ingestion and querying.
+        _search = SearchService(vec_store=get_shared_vector_store())
     return _search
 
 
