@@ -25,4 +25,12 @@ def user_or_ip_key(request: Request) -> str:
     return f"ip:{get_remote_address(request)}"
 
 
-limiter = Limiter(key_func=user_or_ip_key, storage_uri=settings.redis_url or "memory://")
+# swallow_errors=True: if the Redis backend is unreachable, slowapi logs a warning
+# and lets the request through rather than raising -- a rate limiter briefly failing
+# open during a Redis outage is a minor, recoverable security posture dip; an
+# appliance-wide 500 on every LLM/upload request because an auxiliary service is
+# down is a worse outcome for a real deployment, and matches this project's
+# established "degrade gracefully" convention (redis_url, glitchtip_dsn) elsewhere.
+limiter = Limiter(
+    key_func=user_or_ip_key, storage_uri=settings.redis_url or "memory://", swallow_errors=True,
+)
