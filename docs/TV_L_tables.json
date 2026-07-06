@@ -1,0 +1,1014 @@
+{
+  "source": "TV_L.pdf",
+  "tables": [
+    {
+      "index": 0,
+      "table_nr": 1,
+      "page": 2,
+      "caption": "",
+      "columns": [
+        "Einleitung",
+        "",
+        "3"
+      ],
+      "rows": [
+        [
+          "1. Ziele und Grundlagen",
+          "",
+          "4"
+        ],
+        [
+          "2. Diskriminierungspotenziale der Entgeltordnung desTV-L",
+          "",
+          "7"
+        ],
+        [
+          "Frage 1:",
+          "Ist gewährleistet,dassalleTätigkeitenmiteinemeinheitlichenBewertungssystem bewertetwerden?",
+          "7"
+        ],
+        [
+          "Frage 2:",
+          "Ist gewährleistet, dass die Bewertung der Tätigkeiten mittels eines Verfahrens der Arbeitsbewertung erfolgt?",
+          "10"
+        ],
+        [
+          "Frage 3:",
+          "Ist gewährleistet, dass Tätigkeiten, die typischerweise überwiegendvon Frauen (bzw.Männern) ausgeübt werden,nach gemeinsamen Kriterien bewertet werden?",
+          "13"
+        ],
+        [
+          "Frage 4: Frage 5:",
+          "Enthält das Bewertungssystem ausschließlich objektive Kriterien? Ist gewährleistet, dass die Kriterien die charakteristischenAnforderungen undBelastungen der Tätigkeitenvon männlichen und weiblichen Beschäftigten abbilden?",
+          "18 20"
+        ],
+        [
+          "Frage 6:",
+          "Ist gewährleistet, dass die Kriterien überschneidungsfrei sind?",
+          "22"
+        ],
+        [
+          "Frage 7:",
+          "Ist gewährleistet, dass jedes Kriterium für sich eingruppierungswirksam ist und nicht erst dann bewertet wird, wenngleichzeitig ein anderes Kriterium erfüllt ist?",
+          "23"
+        ],
+        [
+          "Frage 8:",
+          "Ist gewährleistet, dass die Bewertungskriterien einen angemessenen Platzim Bewertungssystem erhalten und dass sie nachvollziehbar gewichtet sind?",
+          "24"
+        ],
+        [
+          "Frage 9:",
+          "Sind die Kriterien diskriminierungsfrei undeindeutig umschrieben,sodassverschiedene Personen zu den gleichen Bewertungsergebnissenkommenkönnen?",
+          "25"
+        ],
+        [
+          "Frage 10: Ist geregelt, dass der Bewertung geschlechtsneutrale Arbeitsplatzbeschreibungen zugrunde liegen müssen?",
+          "",
+          "27"
+        ],
+        [
+          "Frage 11: Ist das Bewertungssystem nachvollziehbar und durchschaubar? Ist überprüfbar, worauf Unterschiede beim Entgelt beruhen?",
+          "",
+          "28"
+        ],
+        [
+          "Frage 12: Gilt ein einheitliches Entgeltgefüge? Frage 13: Falls unterschiedliche Tarifteile für Beschäftigtengruppen bestehen: Sind die Beträge und-stufen gleich?",
+          "",
+          "29"
+        ],
+        [
+          "der einzelnen Entgeltgruppen 3. Fazit und Schlussfolgerungen",
+          "",
+          "34"
+        ]
+      ]
+    },
+    {
+      "index": 1,
+      "table_nr": 2,
+      "page": 8,
+      "caption": "Tabelle 1: Grundstruktur der Entgeltordnung des TV-L: Eingruppierung von Tätigkeiten in vier verschiedene Tarifteile",
+      "columns": [
+        "Teil I Allgemeine Tätigkeitsmerkmale für den Verwaltungsdienst",
+        "Beschäftigte in Büro-, Buchhalterei-, sonstigem Innendienst und Außendienst"
+      ],
+      "rows": [
+        [
+          "Teil II Tätigkeitsmerkmale für bestimmte Beschäftigtengruppen",
+          "25 Berufsgruppen, z.B. Gesundheitsberufe, Garten- bau, Sozial- und Erziehungsdienst, technische Berufe"
+        ],
+        [
+          "Teil III Beschäftigte mit körperlich/handwerklich geprägten Tätigkeiten",
+          "z.B. Facharbeit, Gesundheitswesen, Gartenbauberufe, Pförtner, Fahrer"
+        ],
+        [
+          "Teil IV Beschäftigte im Pflegedienst",
+          "Kranken- und Altenpflegeberufe"
+        ]
+      ]
+    },
+    {
+      "index": 2,
+      "table_nr": 3,
+      "page": 9,
+      "caption": "Tabelle 2: Grundstruktur der Entgeltordnung des TV-L: Eingruppierung von Tätigkeiten nach uneinheitlichen Kriterien und Regeln",
+      "columns": [
+        "Teil I Allgemeine Tätigkeitsmerkmale für den Verwaltungsdienst",
+        "Eingruppierung durchgängig auf Basis von Anforderungsmerkmalen"
+      ],
+      "rows": [
+        [
+          "Teil II Tätigkeitsmerkmale für bestimmte Beschäftigtengruppen",
+          "Direkte Eingruppierung von Tätigkeiten, überwiegend ohne Anforderungsmerkmale"
+        ],
+        [
+          "Teil III Beschäftigte mit körperlich/handwerklich geprägten Tätigkeiten",
+          "Eingruppierung vorwiegend mit Anforderungs- merkmalen, z.T. andere Definitionen als in Teil I"
+        ],
+        [
+          "Teil IV Beschäftigte im Pflegedienst",
+          "Eingruppierung überwiegend ohne Anforderungs- merkmale, andere Entgeltgruppen: KR ... a - d"
+        ]
+      ]
+    },
+    {
+      "index": 3,
+      "table_nr": 4,
+      "page": 10,
+      "caption": "Tabelle 3: Tätigkeiten der Entgeltgruppe 6 Eingruppierung nach uneinheitlichen Kriterien und Regeln",
+      "columns": [
+        "Teil I Allgemeine Tätigkeitsmerkmale für den Verwaltungsdienst",
+        "E 6: Beschäftigte im Büro-, Buchhalterei-, sonstigen Innendienst und im Außendienst, deren Tätigkeit gründliche und vielseitige Fachkenntnisse erfordert"
+      ],
+      "rows": [
+        [
+          "Teil II Tätigkeitsmerkmale für bestimmte Beschäftigtengruppen",
+          "E 6: Logopäden mit entsprechender Tätigkeit"
+        ],
+        [
+          "Teil III Beschäftigte mit körperlich/handwerklich geprägten Tätigkeiten",
+          "E 6: Orthopädiemechaniker und Bandagisten mit Aus- bildung nach Entgeltgruppe 5 (= mind. 3 Jahre)"
+        ],
+        [
+          "Teil IV Beschäftigte im Pflegedienst",
+          "KR 7a (keine E 6 vorhanden): Altenpflegerinnen mit entsprechender Tätigkeit"
+        ]
+      ]
+    },
+    {
+      "index": 4,
+      "table_nr": 5,
+      "page": 14,
+      "caption": "Tabelle 5: Uneinheitliche Stufendefinitionen von erforderlichen Fachkenntnissen",
+      "columns": [
+        "Teil I Allgemeine Tätigkeitsmerkmale für den Verwaltungsdienst",
+        "- - -",
+        "gründliche Fachkenntnisse gründliche und vielseitige Fachkenntnisse gründliche, umfassende Fachkenntnisse"
+      ],
+      "rows": [
+        [
+          "Teil II Tätigkeitsmerkmale für bestimmte Beschäftigtengruppen",
+          "- - - -",
+          "besonders hervorragende Fachkenntnisse (1) vielseitige Fachkenntnisse (9.1) besondere Fachkenntnisse (9.1) gründliche, umfangreiche Fachkenntnisse (16)"
+        ],
+        [
+          "Teil III Beschäftigte mit körperlich/ handwerklich geprägten Tätigkeiten",
+          "- - - -",
+          "umfassende Fachkenntnisse (3.6) ausreichende Fachkenntnisse (3.7) Berufsausbildung weniger als 3 Jahre bzw. mind.3 Jahre (1) vielseitiges, hochwertiges fachliches Können (3.6, 3.7, 3.16)"
+        ],
+        [
+          "Teil IV Beschäftigte im Pflegedienst",
+          "- - - -",
+          "'Fachkenntnisse' i.S. von Teil I werden nicht verwendet; Berufsausbildungen der Kranken-/Altenpflegerin fehlen. Bei Alten-, Krankenpflegehelferinnen: mind. einjährige Ausbildung und Abschlussprüfung (3.4, 3.5) Bei Lehrkräften: mind. einjährige erfolgreich abge- schlossene Fachausbildung an Schulen für Lehrkräfte in der Gesundheits- und Krankenpflege (1.3) bzw. für Lehrhebammen (2.2) oder in der Altenpflege (3.2) Sozial-psychiatrische Zusatzausbildung,Weiterbildung (1.6)"
+        ]
+      ]
+    },
+    {
+      "index": 5,
+      "table_nr": 6,
+      "page": 15,
+      "caption": "Tabelle 6: Uneinheitliche Stufendefinitionen von (Führungs-)Verantwortung",
+      "columns": [
+        "Teil I AllgemeineTätigkeitsmerkmale für den Verwaltungsdienst",
+        "Verantwortung - besonders verantwortungsvoll -",
+        ""
+      ],
+      "rows": [
+        [
+          "Teil II Tätigkeitsmerkmale für bestimmte Beschäftigten- gruppen",
+          "- Verantwortung - Maß der Verantwortung (9.3, 17, 20.4, 22.1, 22.10) - Besonders verantwortungsvolle Tätigkeit (15.1) - Größe der Verantwortung (15.1, 17) Führungsverantwortung - 4, 5 oder 6 Apotheker oder (Zahn-, Tier-) Ärzte ständig unterstellt - mind. 3 Beschäftigte in E 6 (4) - mind. 6 Fernmelderevisoren (5)",
+          ""
+        ],
+        [
+          "Teil III Beschäftigte mit körperlich/ handwerklich geprägten Tätigkeiten",
+          "- Verantwortung - besondere Verantwortung (1) - Verantwortung für die Funktionstüchtigkeit der Geräte (3.3) - Größe der Verantwortung (3.14)",
+          ""
+        ],
+        [
+          "Teil IV Beschäftigte im Pflegedienst",
+          "- Gesamtverantwortung für den Pflegedienst (Definition von 'Leitende Gesundheits- und Krankenpflegerinnen', 'Leitende Lehrkräfte', 'Leitende Hebammen' und 'Leitende Altenpflegerinnen')",
+          ""
+        ],
+        [
+          "",
+          "Pflegepersonen* 1.1 mind. 900 mind. 600 mind. 300 1.2 mind. 192 mind. 96 mind. 5 1.3 mind. 160* mind. 80* 1.4 mind. 40 mind. 48 mind. 12",
+          "KR 12a 11b 11a 11a 10a 9b 11a 10a 10a 10a 8a"
+        ]
+      ]
+    },
+    {
+      "index": 6,
+      "table_nr": 7,
+      "page": 17,
+      "caption": "Tabelle 8: Körperkraft nur in Teil III",
+      "columns": [
+        "Teil I Allgemeine Tätigkeitsmerkmale für den Verwaltungsdienst",
+        "kommt nicht vor"
+      ],
+      "rows": [
+        [
+          "Teil II Tätigkeitsmerkmale für bestimmte Beschäftigtengruppen",
+          "kommt nicht vor"
+        ],
+        [
+          "Teil III Beschäftigte mit körperlich/ handwerklich geprägten Tätigkeiten",
+          "außerordentlich beanspruchte Körperkraft (1) (oder besondere Verantwortung)"
+        ],
+        [
+          "Teil IV Beschäftigte im Pflegedienst",
+          "kommt nicht vor"
+        ]
+      ]
+    },
+    {
+      "index": 7,
+      "table_nr": 8,
+      "page": 18,
+      "caption": "Tabelle 9: 'schwierige Tätigkeiten': ein Begriff - verschiedene Definitionen",
+      "columns": [
+        "Teil I Verwaltungsdienst",
+        "E 4: Beschäftigte …mit schwierigen Tätigkeiten Definition lt. Protokollerklärung Nr. 8: Schwierige Tätigkeiten …, die mehr als eine eingehende Einarbei- tung bzw. mehr als eine fachliche Anlernung i.S. der E 3 erfordern, z.B. durch einen höheren Aufwand an gedanklicher Arbeit."
+      ],
+      "rows": [
+        [
+          "Teil II Sozialarbeiter/Sozialpädagogen (20.4)",
+          "E 9 FG 1: …mit staatlicher Anerkennung und entsprechender Tätig- keit…mit schwierigen Tätigkeiten (Beschäftigte in dieser Fallgruppe erhalten eine monatliche Entgeltgruppenzulage gemäß Anlage F Abschnitt I Nr. 5) Definition lt. Protokollerklärung: Schwierige Tätigkeiten sind z.B. Beratung von Suchtmittel-Abhän- gigen …von HIV-Infizierten oder an AIDS erkrankten Personen."
+        ]
+      ]
+    },
+    {
+      "index": 8,
+      "table_nr": 9,
+      "page": 19,
+      "caption": "Tabelle 10: Hochwertige Leistungen bzw. Arbeiten, teilweise gekoppelt mit dem Schwierigkeitsgrad der Aufgaben",
+      "columns": [
+        "Teil I",
+        "- mind. zu 1/3 hochwertige Leistungen bei beson- ders schwierigen Aufgaben (nur E 14 FG 3)"
+      ],
+      "rows": [
+        [
+          "Teil II",
+          "- hochwertige Leistungen bei schwierigen Forschungsaufgaben (6) - hochwertige Leistungen (22.7)"
+        ],
+        [
+          "Teil III",
+          "- besonders hochwertige Arbeiten (= vielseitiges hochwertiges fachliches Können und besondere Umsicht und Geschick) (1) - hochwertige Arbeiten (= besonderes Überle- gungsvermögen und fachliches Geschick) (2.6, 3.6, 3.16) - hochwertigste Arbeiten (3.1)"
+        ],
+        [
+          "Teil IV",
+          "kommt nicht vor"
+        ]
+      ]
+    },
+    {
+      "index": 9,
+      "table_nr": 10,
+      "page": 20,
+      "caption": "Tabelle 11: Schwierigkeit der Tätigkeit, teilweise gekoppelt mit der Bedeutung und dem Umfang des Arbeitsbereiches",
+      "columns": [
+        "Schwierigkeit der Tätigkeit",
+        "",
+        "Bedeutung und Umfang"
+      ],
+      "rows": [
+        [
+          "Teil I",
+          "einfachste Tätigkeit einfache Tätigkeit schwierige Tätigkeit",
+          "- besondere Schwierigkeit und Bedeutung bis zu 1/3 - besondere Schwierigkeit und Bedeutung bis zu 1/3"
+        ],
+        [
+          "Teil II",
+          "einfache Tätigkeit (1, 9, 12.1, 14, 16, 19, 20.5, 22.5, 22.7, 22.9, 22.11, 22.12, 23) einfache Aufgaben (5, 8.3, 9.1, 11.2, 11.3, 15.3, 17, 21, 22.10)",
+          "- besondere Schwierigkeit und Bedeutung (9.1, 20.4, 22.1) - Umfang und Bedeutung (9.1, 15.2, 15.3, 15.4, 20.5) - besonders bedeutender Arbeitsbereich (15.4) - besondere Bedeutung (16, 23)"
+        ],
+        [
+          "Teil III",
+          "einfachste Tätigkeit (1) einfache Tätigkeit (1)",
+          "kommt nicht vor"
+        ],
+        [
+          "Teil IV",
+          "kommt nicht vor",
+          "kommt nicht vor"
+        ]
+      ]
+    },
+    {
+      "index": 10,
+      "table_nr": 11,
+      "page": 21,
+      "caption": "Tabelle 12: Erzieher_in - Tätigkeit ohne Verantwortung, ohne Selbständigkeit?",
+      "columns": [
+        "Teil I",
+        "Verwaltungsdienst E 9 Beschäftigte in Büro-,…deren Tätigkeit sich dadurch aus der Entgeltgruppe 9 Fallgruppe 2 heraushebt, dass sie besonders verantwortungsvoll ist 2.…deren Tätigkeit gründliche, umfassende Fachkenntnisse und selb- ständige Leistungen erfordert"
+      ],
+      "rows": [
+        [
+          "Teil II",
+          "Erzieher_in E 9 2. Erzieherinnen mit staatlicher Anerkennung und entsprechender Tätig- keit …mit besonders schwierigen fachlichen Tätigkeiten"
+        ]
+      ]
+    },
+    {
+      "index": 11,
+      "table_nr": 12,
+      "page": 21,
+      "caption": "Tabelle 13: Familienhebamme Gesundheitsamt - geforderte Kompetenzen und bewertete Anforderungen",
+      "columns": [
+        "Geforderte Kompetenzen:",
+        "",
+        "B ewertete Anforderungen:"
+      ],
+      "rows": [
+        [
+          "Auszug aus einer Stellenausschreibung: Familienhebamme Vergütung E 8 (Bezirksamt Neukölln)",
+          "",
+          "Entgeltordnung, Teil I Verwaltungsdienst, Entgeltgruppe 8:"
+        ],
+        [
+          "'Außerfachliche Kompetenzen: -",
+          "",
+          "'Beschäftigte im Büro-, Buchhalterei-, sonstigen Innendienst und im Außendienst, deren Tätigkeit gründliche und vielseitige Fachkenntnisse und mindestens zu einem Drittel selbständige Leistun- gen erfordert. (Hierzu Protokollerklärungen Nrn. 3, 5 und 6)'"
+        ],
+        [
+          "",
+          "Fähigkeit, Probleme und Konflikte zu erkennen und Lösungswege anzubieten Fähigkeit zur Beratung von Klientinnen in sozialen Angelegenheiten und zur Vermittlung in das Regelversorgungssystem",
+          ""
+        ],
+        [
+          "",
+          "Interkulturelle Kompetenz",
+          ""
+        ],
+        [
+          "",
+          "Ausgeprägte kommunikative Fähigkeiten",
+          ""
+        ],
+        [
+          "",
+          "Fähigkeit zur kooperativen Zusammenarbeit mit anderen Akteuren Fähigkeit zur Vermittlung von Arbeitsinhalten",
+          ""
+        ],
+        [
+          "",
+          "an Fach- und Leitungskräfte'",
+          ""
+        ]
+      ]
+    },
+    {
+      "index": 12,
+      "table_nr": 13,
+      "page": 22,
+      "caption": "",
+      "columns": [
+        "Geforderte Kompetenzen:",
+        "Bewertete Anforderungen:"
+      ],
+      "rows": [
+        [
+          "Auszug aus Stellenausschreibung: Tarifbeschäftigte/r mit Sekretariatsaufgaben - Vergütung E 5 (Bezirksamt Mitte) - 'Leistungsverhalten: Unabdingbar sind Belastbarkeit, Leistungsfähig- keit, Organisationsfähigkeit und Selbstständigkeit. Sehr wichtig ist die Fähigkeit, zeitnahe und nach- vollziehbare Entscheidungen zu treffen und dafür Verantwortung zu übernehmen sowie sich fachlich korrekt und adressatengerecht zu äußern. Wichtig ist wirtschaftliches Handeln. - Sozialverhalten: Unabdingbar sind Kommunikations- und Team- fähigkeit. Sehr wichtig ist Konfliktfähigkeit. Kunden- und adressatenorientiertes Handeln: Unabdingbar ist die Fähigkeit, die Arbeit als Dienst- leistung für den externen und internen Kunden zu begreifen.'",
+          "Entgeltordnung Teil I (Verwaltungsdienst) Entgeltgruppe 5: Beschäftigte im Büro-, Buchhalterei-, sonstigen Innendienst und im Außendienst, deren Tätigkeit gründliche Fachkenntnisse erfordert. (Hierzu Protokollerklärungen Nr. 3 und 7)'"
+        ]
+      ]
+    },
+    {
+      "index": 13,
+      "table_nr": 14,
+      "page": 24,
+      "caption": "Tabelle 15: Stufenaufbau und Aneinanderbindung von Merkmalen als Zugangsschranken für nächst  höhere Entgeltgruppe",
+      "columns": [
+        "Entgeltgruppe 8",
+        "Beschäftigte im Büro-, Buchhalterei-, sonstigen Innendienst und Außendienst, deren Tätigkeit gründliche und vielseitige Fachkenntnisse und mindestens zu einem Drittel selbständige Leistungen erfordert."
+      ],
+      "rows": [
+        [
+          "Entgeltgruppe 9",
+          "1. Beschäftigte im Büro-, Buchhalterei-, sonstigen Innendienst und Außendienst, deren Tätigkeit sich dadurch aus der Entgeltgruppe 9 Fallgruppe 2 heraushebt, dass sie besonders verantwortungsvoll ist. 2. Beschäftigte (…) deren Tätigkeit gründliche, umfassende Fachkenntnisse und s elbständige Leistungen erfordert."
+        ],
+        [
+          "Entgeltgruppe 10",
+          "Beschäftigte im Büro-, Buchhalterei-, sonstigen Innendienst und Außendienst, deren Tätigkeit sich mindestens zu einem Drittel durch besondere Schwierigkeit und Bedeutung aus der Entgeltgruppe 9 Fallgruppe 1 heraushebt."
+        ]
+      ]
+    },
+    {
+      "index": 14,
+      "table_nr": 15,
+      "page": 25,
+      "caption": "Tabelle 16: Gewichtung von Bewertungskriterien bei der Bewertung von Beamtenstellen nach KGSt (Kommunale Gemeinschaftsstelle für Verwaltungsmanagement, 2009)",
+      "columns": [
+        "Bewertungsmerkmale",
+        "Gewichtung"
+      ],
+      "rows": [
+        [
+          "Grad der Vor- und Ausbildung",
+          "22%"
+        ],
+        [
+          "Grad der Erfahrung",
+          "8%"
+        ],
+        [
+          "Schwierigkeitsgrad der Informationsverarbeitung",
+          "25%"
+        ],
+        [
+          "Verantwortung",
+          "25%"
+        ],
+        [
+          "Selbständigkeit",
+          "10%"
+        ],
+        [
+          "Schwierigkeitsgrad der dienstlichen Beziehungen",
+          "10%"
+        ],
+        [
+          "Gesamt",
+          "100%"
+        ]
+      ]
+    },
+    {
+      "index": 15,
+      "table_nr": 16,
+      "page": 26,
+      "caption": "Tabelle 17: Anforderungsmerkmale und Definitionen des TV-L",
+      "columns": [
+        "Merkmale",
+        "Definitionen (s. Protokollerklärungen Teil I der Entgeltordnung)",
+        ""
+      ],
+      "rows": [
+        [
+          "Schwierigkeit der Tätigkeit",
+          "",
+          "- einfachste Tätigkeiten - keine Definition, lediglich Beispielkatalog - einfache Tätigkeiten: erfordern eine Einarbeitung, die über eine sehr kurze Einweisung oder Anlernphase hinausgeht. Die Einarbei- tung dient dem Erwerb derjenigen Kenntnisse und Fertigkeiten, die für die Beherrschung der Arbeitsabläufe als solche erforderlich sind. (Nr. 9) - schwierige Tätigkeiten …, die mehr als eine eingehende Einarbei- tung bzw. mehr als eine fachliche Anlernung i.S. der E 3 erfordern,"
+        ],
+        [
+          "Bedeutung der Tätigkeit",
+          "",
+          "keine Definition, ausgeklagter Rechtsbegriff"
+        ],
+        [
+          "Fachkenntnisse",
+          "",
+          "- gründliche Fachkenntnisse : nähere Kenntnisse von Gesetzen, Verwaltungsvorschriften und Tarifbestimmungen usw. des Aufga- benkreises (Nr. 7) - Gründliche, umfassende Fachkenntnisse bedeuten gegenüber den in Entgeltgruppen 6 und 8 sowie in Entgeltgruppe 9 Fallgruppe 3 geforderten gründlichen und vielseitigen Fachkenntnissen eine Steigerung in Breite und Tiefe. (Nr. 4) - Die gründlichen und vielseitigen Fachkenntnisse brauchen sich nicht auf das gesamte Gebiet der Verwaltung/des Betriebes (…) zu beziehen. Der Aufgabenkreis muss aber so gestaltet sein, dass er nur beim Vorhandensein gründlicher und vielseitiger Fachkenntnisse ordnungsgemäß bearbeitet werden kann. (Nr. 6)"
+        ],
+        [
+          "Selbständige Leistungen",
+          "",
+          "Selbständige Leistungen erfordern ein den vorausgesetzten Fach- kenntnissen entsprechendes selbständiges Erarbeiten einer eigenen geistigen Initiative; eine leichte geistige Arbeit kann diese Anforde- rung nicht erfüllen. (Nr. 5)"
+        ],
+        [
+          "Verantwortung",
+          "",
+          "- besonders verantwortungsvoll keine Definition, ausgeklagter Rechtsbegriff - erhebliches Maß an Verantwortung keine Definition, ausgeklagter Rechtsbegriff - Zahl der Unterstellten und ihrer Eingruppierung (Führungsverantwortung)"
+        ]
+      ]
+    },
+    {
+      "index": 16,
+      "table_nr": 17,
+      "page": 30,
+      "caption": "Tabelle 18: Auszug aus der Entgelttabelle Tarifgebiet West (01.01.2018 - 30.9.2018), Anlage B zum TV-L",
+      "columns": [
+        "Kumulierte Jahresgrundentgelte in den Entgeltgruppen 9 und KR 9a",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "rows": [
+        [
+          "€",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6"
+        ],
+        [
+          "E 12",
+          "3309,47",
+          "3653,37",
+          "4162,72",
+          "4609,96",
+          "5187,62",
+          "5265,44"
+        ],
+        [
+          "E 11",
+          "3202,32",
+          "3522,94",
+          "3777,60",
+          "4162,72",
+          "4721,77",
+          "4792,59"
+        ],
+        [
+          "E 10",
+          "3089,22",
+          "3400,58",
+          "3653,37",
+          "3908,04",
+          "4392,57",
+          "4458,46"
+        ],
+        [
+          "E 9",
+          "2749,89",
+          "3029,67",
+          "3172,55",
+          "3560,20",
+          "3883,21",
+          "3941,46"
+        ],
+        [
+          "E 8",
+          "2583,21",
+          "2845,15",
+          "2964,19",
+          "3077,31",
+          "3202,32",
+          "3279,70"
+        ],
+        [
+          "E 7",
+          "2428,44",
+          "2672,50",
+          "2833,23",
+          "2952,29",
+          "3047,55",
+          "3130,87"
+        ],
+        [
+          "E 6",
+          "2386,77",
+          "2624,88",
+          "2743,94",
+          "2863,01",
+          "2940,38",
+          "3023,72"
+        ],
+        [
+          "E 5",
+          "2291,51",
+          "2517,73",
+          "2636,79",
+          "2749,89",
+          "2839,19",
+          "2898,72"
+        ],
+        [
+          "E 4",
+          "2184,36",
+          "2404,64",
+          "2553,45",
+          "2636,79",
+          "2720,14",
+          "2773,70"
+        ],
+        [
+          "E 3",
+          "2154,60",
+          "2368,91",
+          "2428,44",
+          "2523,68",
+          "2601,07",
+          "2666,55"
+        ]
+      ]
+    },
+    {
+      "index": 17,
+      "table_nr": 18,
+      "page": 30,
+      "caption": "Tabelle 19: Entgelttabelle für Pflegekräfte, Anlage C zum TV-L (01.01.2018 - 30.9.2018)",
+      "columns": [
+        "Kumulierte Jahresgrundentgelte in den Entgeltgruppen 9 und KR 9a",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "rows": [
+        [
+          "€",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6"
+        ],
+        [
+          "Kr 12a",
+          "",
+          "",
+          "4162,72",
+          "4609,96",
+          "5187,62",
+          ""
+        ],
+        [
+          "Kr 11b",
+          "",
+          "",
+          "",
+          "4162,72",
+          "4721,77",
+          ""
+        ],
+        [
+          "Kr 11a",
+          "",
+          "",
+          "3777,60",
+          "4162,72",
+          "4721,77",
+          "4792,60"
+        ],
+        [
+          "Kr 10a",
+          "",
+          "",
+          "3653,37",
+          "3908,04",
+          "4392,57",
+          "4458,46"
+        ],
+        [
+          "Kr 9d",
+          "",
+          "",
+          "3560,20",
+          "3883,21",
+          "4137,87",
+          "4199,94"
+        ],
+        [
+          "Kr 9c",
+          "",
+          "",
+          "3461,30",
+          "3703,06",
+          "3932,87",
+          "3991,87"
+        ],
+        [
+          "Kr 9b",
+          "",
+          "",
+          "3172,55",
+          "3560,20",
+          "3703,06",
+          "3758,61"
+        ],
+        [
+          "Kr 9a",
+          "",
+          "",
+          "3172,55",
+          "3279,70",
+          "3461,30",
+          "3513,22"
+        ],
+        [
+          "Kr 8a",
+          "",
+          "2833,23",
+          "2964,19",
+          "3077,31",
+          "3279,70",
+          "3461,30"
+        ],
+        [
+          "Kr 7a",
+          "",
+          "2672,50",
+          "2833,23",
+          "3077,31",
+          "3202,32",
+          "3327,32"
+        ],
+        [
+          "Kr 4a",
+          "43,91",
+          "2404,64",
+          "2553,45",
+          "2863,01",
+          "2940,38",
+          "3089,22"
+        ],
+        [
+          "Kr 3a",
+          "2154,60",
+          "2368,91",
+          "2428,44",
+          "2523,68",
+          "2601,07",
+          "2773,70"
+        ]
+      ]
+    },
+    {
+      "index": 18,
+      "table_nr": 19,
+      "page": 32,
+      "caption": "Tabelle 20: Unterschiedliche Stufenaufstiege in den Teilen II und IV der Entgeltordnung des TV-L",
+      "columns": [
+        "Entgeltbeträge und Stufenaufstieg E 9 (Teil II, 22.3, FG 2)",
+        "",
+        "Entgeltbeträge und Stufenaufstieg KR 9a Pflege (Teil IV, 1.5, FG 4)",
+        ""
+      ],
+      "rows": [
+        [
+          "Entgeltgruppentext: 'Technische Assistenten mit staatlicher Anerken- nung mit entsprechender Tätigkeit, die schwierige Aufgaben erfüllen, die ein besonders hohes Maß an Verantwortlichkeit erfordern.'",
+          "",
+          "Entgeltgruppentext: 'Gesundheits- und Krankenpflegerinnen in Poli- kliniken (Ambulanzbereichen) oder Ambulanzen/ Nothilfen, denen durch ausdrückliche Anordnung mindestens 6 Pflegepersonen ständig unterstellt sind.'",
+          ""
+        ],
+        [
+          "Stufenaufstieg Einstieg mit Stufe 1",
+          "= 2.749,89 €",
+          "Stufenaufstieg Keine Stufe 1",
+          ""
+        ],
+        [
+          "Stufe 2 nach 1 J. in Stufe 1",
+          "= 3.029,67 €",
+          "Keine Stufe 2",
+          ""
+        ],
+        [
+          "Stufe 3 nach 2 J. in Stufe 2",
+          "= 3.172,55",
+          "Einstieg mit Stufe",
+          ""
+        ],
+        [
+          "",
+          "€",
+          "3",
+          "= 3.172,55 €"
+        ],
+        [
+          "Stufe 4 nach 3 J. in Stufe 3",
+          "= 3.560,20 €",
+          "Stufe 4 nach 5 J. in Stufe 3",
+          "= 3.279,70 €"
+        ],
+        [
+          "Stufe 5 nach 4 J. in Stufe 4",
+          "= 3.883,21 €",
+          "Stufe 5 nach 5 J. in Stufe 4",
+          "= 3.461,30 €"
+        ],
+        [
+          "Stufe 6 nach 5 J. in Stufe 5",
+          "= 3.941,46 €",
+          "Stufe 6 nach 5 J. in Stufe 5",
+          "= 3.513,22 €"
+        ]
+      ]
+    },
+    {
+      "index": 19,
+      "table_nr": 20,
+      "page": 33,
+      "caption": "Tabelle 21:",
+      "columns": [
+        "Kumulierte Jahresgrundentgelte in den Entgeltgruppen 9 und KR 9a",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "rows": [
+        [
+          "Jahr/ Erfahrungsjahr",
+          "Entgeltgruppe",
+          "",
+          "",
+          "Entgeltgruppe E 9",
+          "",
+          ""
+        ],
+        [
+          "",
+          "Stufe",
+          "Monatsentgelt",
+          "kumuliertes Jahresgehalt",
+          "Stufe",
+          "Monatsentgelt",
+          "kumuliertes Jahresgehalt"
+        ],
+        [
+          "2018/1.",
+          "3",
+          "3.172,55 €",
+          "38.070,60 €",
+          "1",
+          "2.749,89 €",
+          "32.998,68 €"
+        ],
+        [
+          "2019/2.",
+          "3",
+          "3.172,55 €",
+          "76.141,20 €",
+          "2",
+          "3.029,67 €",
+          "69.354,72 €"
+        ],
+        [
+          "2020/3.",
+          "3",
+          "3.172,55 €",
+          "114.211,80 €",
+          "2",
+          "3.029,67 €",
+          "105.710,76 €"
+        ],
+        [
+          "2021/4.",
+          "3",
+          "3.172,55 €",
+          "152.282,40 €",
+          "3",
+          "3.172,55 €",
+          "143.781,36 €"
+        ],
+        [
+          "2022/5.",
+          "3",
+          "3.172,55 €",
+          "190.353,00 €",
+          "3",
+          "3.172,55 €",
+          "181.851,96 €"
+        ],
+        [
+          "2023/6.",
+          "4",
+          "3.279,70 €",
+          "229.709,40 €",
+          "3",
+          "3.172,55 €",
+          "219.922,56 €"
+        ],
+        [
+          "2024/7.",
+          "4",
+          "3.279,70 €",
+          "269.065,80 €",
+          "4",
+          "3.560,20 €",
+          "262.644,96 €"
+        ],
+        [
+          "2025/8.",
+          "4",
+          "3.279,70 €",
+          "308.422,20 €",
+          "4",
+          "3.560,20 €",
+          "305.367,36 €"
+        ],
+        [
+          "2026/9.",
+          "4",
+          "3.279,70 €",
+          "347.778,60 €",
+          "4",
+          "3.560,20 €",
+          "348.089,76 €"
+        ],
+        [
+          "2027/10.",
+          "4",
+          "3.279,70 €",
+          "387.135,00 €",
+          "4",
+          "3.560,20 €",
+          "390.812,16 €"
+        ],
+        [
+          "2028/11.",
+          "5",
+          "3.461,30 €",
+          "428.670,60 €",
+          "5",
+          "3.883,21 €",
+          "437.410,68 €"
+        ],
+        [
+          "2029/12.",
+          "5",
+          "3.461,30 €",
+          "470.206,20 €",
+          "5",
+          "3.883,21 €",
+          "484.009,20 €"
+        ],
+        [
+          "2030/13.",
+          "5",
+          "3.461,30 €",
+          "511.741,80 €",
+          "5",
+          "3.883,21 €",
+          "530.607,72 €"
+        ],
+        [
+          "2031/14.",
+          "5",
+          "3.461,30 €",
+          "553.277,40 €",
+          "5",
+          "3.883,21 €",
+          "577.206,24 €"
+        ],
+        [
+          "2032 /15.",
+          "5",
+          "3.461,30 €",
+          "594.813,00 €",
+          "5",
+          "3.883,21 €",
+          "623.804,76 €"
+        ],
+        [
+          "2033/16.",
+          "6",
+          "3.513,22 €",
+          "636.971,64 €",
+          "6",
+          "3.941,46 €",
+          "671.102,28 €"
+        ],
+        [
+          "jedes weitere Jahr",
+          "6",
+          "3.513,22 €",
+          "42.158,64 €",
+          "6",
+          "3.941,46 €",
+          "47.297,52 €"
+        ],
+        [
+          "Differenz im Jahr 2033",
+          "",
+          "",
+          "- 34.130,64 €",
+          "",
+          "",
+          ""
+        ],
+        [
+          "jährlich ab 2033",
+          "",
+          "",
+          "- 5.138,88 €",
+          "",
+          "",
+          ""
+        ]
+      ]
+    }
+  ]
+}

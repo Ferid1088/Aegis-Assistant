@@ -5,7 +5,9 @@ keys/update_signing_privkey.pem
 **/__pycache__/
 *.pyc
 .DS_Store
-docs/
+docs/*
+!docs/TV_L.pdf
+!docs/TV_L_tables.json
 .worktrees/
 .pytest_cache/
 .superpowers/
