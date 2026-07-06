@@ -1,11 +1,16 @@
+import uuid
+
 import sentry_sdk
 import structlog
 from celery import Celery
 from celery.signals import task_postrun, task_prerun
 
 from rag.config import settings
+from rag.crosscutting.security.ingestion_limits import decrement_queued_ingestion
+from rag.domain.ingestion_job_service import JobNotFound, get_job
 from rag.observability.logging_config import configure_logging
 from rag.observability.queue_metrics import start_queue_depth_exporter
+from rag.storage.sql.base import SessionLocal
 
 configure_logging()
 
@@ -35,3 +40,21 @@ def _bind_task_id(task_id=None, **kwargs):
 @task_postrun.connect
 def _clear_task_id(**kwargs):
     structlog.contextvars.clear_contextvars()
+
+
+@task_postrun.connect
+def _decrement_ingestion_queue_count(sender=None, args=None, **kwargs):
+    if sender is None or sender.name != "rag.worker.tasks.run_ingestion":
+        return
+    job_id = args[0] if args else None
+    if job_id is None:
+        return
+    db = SessionLocal()
+    try:
+        try:
+            job = get_job(db, uuid.UUID(job_id))
+        except JobNotFound:
+            return
+        decrement_queued_ingestion(str(job.uploaded_by))
+    finally:
+        db.close()

@@ -9,6 +9,7 @@ from rag.api.schemas.documents import (
     JobResponse, JobStatusResponse, LogicalDocumentDetailResponse, LogicalDocumentResponse, VersionResponse,
 )
 from rag.config import settings
+from rag.crosscutting.security.ingestion_limits import check_and_increment_queued_ingestion
 from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import ingestion_job_service
 from rag.storage.document_store import SQLiteDocumentStore
@@ -39,6 +40,9 @@ def upload_document(
     contents = file.file.read()
     if len(contents) > settings.max_upload_bytes:
         raise HTTPException(status_code=413, detail="file exceeds max upload size")
+
+    if not check_and_increment_queued_ingestion(str(current.user.id)):
+        raise HTTPException(status_code=429, detail="too many queued ingestion jobs, wait for one to finish")
 
     job_id = uuid.uuid4()
     upload_dir = Path(settings.upload_dir)
