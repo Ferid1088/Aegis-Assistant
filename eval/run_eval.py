@@ -13,6 +13,16 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock
 
+# Executed as `uv run python eval/run_eval.py`, Python sets sys.path[0] to this
+# script's own directory (eval/), not the repo root -- `rag` isn't an installed
+# package (no [build-system] in pyproject.toml), so without this the `from rag...`
+# imports below (and the `from eval...` one right after) raise ModuleNotFoundError
+# regardless of the caller's cwd. Same fix already applied in eval/eval_report.py
+# for the same reason.
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from eval.eval_aggregation import aggregate_metric_columns
+
 # Patch broken langchain_community import before ragas loads
 sys.modules["langchain_community.chat_models.vertexai"] = MagicMock()
 
@@ -72,7 +82,19 @@ def main():
         print(f"  [{i + 1}/{len(gold)}] {q}")
 
         try:
-            result = graph.invoke({"question": q})
+            # build_query_graph() always compiles with a checkpointer attached
+            # (rag/graphs/query.py's _make_checkpointer(), InMemorySaver or
+            # SqliteSaver) -- LangGraph requires a configurable.thread_id (or
+            # checkpoint_ns/checkpoint_id) on every .invoke() once a checkpointer
+            # is present, or it raises ValueError("Checkpointer requires one or
+            # more of the following 'configurable' keys..."). The production API
+            # route (rag/api/routers/conversations.py) already supplies this via
+            # the real conversation_id; each golden question here is independent
+            # (no cross-turn state needed), so a per-question unique thread_id
+            # is enough to satisfy the requirement.
+            result = graph.invoke(
+                {"question": q}, config={"configurable": {"thread_id": f"eval-{i}"}},
+            )
             answer = result.get("answer", "")
             reranked = result.get("reranked", [])
             ctx = [c.content for c in reranked] if reranked else [""]
@@ -113,11 +135,7 @@ def main():
     df = result.to_pandas()
 
     metric_cols = [c for c in df.columns if c not in ("question", "answer", "contexts", "ground_truth")]
-    agg_scores = {}
-    for col in metric_cols:
-        vals = df[col].dropna()
-        if len(vals) > 0:
-            agg_scores[col] = float(vals.mean())
+    agg_scores = aggregate_metric_columns(df, metric_cols)
 
     print("\n" + "=" * 60)
     print("RAGAS BASELINE SCORES")

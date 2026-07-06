@@ -14,6 +14,13 @@ import sys
 from datetime import date
 from pathlib import Path
 
+# Executed as `uv run python eval/table_ab.py`, Python sets sys.path[0] to this
+# script's own directory (eval/), not the repo root -- `rag` isn't an installed
+# package (no [build-system] in pyproject.toml), so without this the `from rag...`
+# imports below raise ModuleNotFoundError regardless of the caller's cwd. Same fix
+# already applied in eval/eval_report.py for the same reason.
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from qdrant_client import QdrantClient, models as qm
 from sentence_transformers import CrossEncoder
 
