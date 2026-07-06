@@ -15,6 +15,7 @@ from rag.bootstrap.secrets_gen import (
     generate_glitchtip_secret_key, generate_grafana_admin_password, generate_jwt_secret, generate_keystore_master_key,
     generate_neo4j_password, generate_postgres_password,
 )
+from rag.bootstrap.tls_cert import ensure_tls_certificate
 from rag.config import settings
 from rag.healthcheck import main as healthcheck_main
 from rag.storage.sql.base import SessionLocal
@@ -27,6 +28,9 @@ def run_install() -> None:
     check_docker()
     check_ram()
     check_gpu()
+
+    print("== Generating TLS certificate ==")
+    ensure_tls_certificate()
 
     print("== Generating secrets ==")
     env_path = Path(".env")
