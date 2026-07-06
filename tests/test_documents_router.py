@@ -189,7 +189,10 @@ def test_upload_still_succeeds_when_the_rate_limit_backend_is_unreachable(mock_t
     # through the real route, not just by inspecting the Limiter's configuration.
     _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
 
-    with patch.object(limiter, "_storage") as mock_storage:
+    with patch.object(limiter.limiter, "storage") as mock_storage:
+        # patching Limiter._storage would silently no-op: the actual check path
+        # reads Limiter._limiter.storage (aliased via the public `.limiter`
+        # property), captured once at construction time, not `Limiter._storage`.
         mock_storage.incr.side_effect = ConnectionError("redis unreachable")
         resp = client.post(
             "/api/v1/documents",

@@ -12,6 +12,14 @@ from rag.crosscutting.security.tokens import decode_token
 
 
 def user_or_ip_key(request: Request) -> str:
+    # slowapi only sets request.state.view_rate_limit on the success path inside
+    # __evaluate_limits, *after* the storage call this key feeds into -- if that
+    # storage call raises (e.g. Redis unreachable) and swallow_errors=True catches
+    # it, the decorator wrapper still unconditionally reads view_rate_limit
+    # afterward to build response headers, crashing with an AttributeError instead
+    # of the swallowed request going through. key_func runs before the storage
+    # call on every check, so preset a harmless default here to close that gap.
+    request.state.view_rate_limit = None
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header.removeprefix("Bearer ")
