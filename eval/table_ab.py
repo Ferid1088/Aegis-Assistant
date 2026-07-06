@@ -10,6 +10,7 @@ Usage:
 
 import json
 import re
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -202,6 +203,17 @@ def aggregate(results):
     }
 
 
+def check_hit_at_10_gate(agg: dict, threshold: float = 1.0) -> None:
+    """CI regression gate (Phase 2 spec target: hit@10 == 1.0 on the table-aware
+    variant). Call after aggregate() in single-collection mode."""
+    if agg["hit_at_10"] < threshold:
+        print(f"\n❌ REGRESSION GATE FAILED: hit@10 = {agg['hit_at_10']:.3f} "
+              f"(threshold: {threshold:.3f})")
+        sys.exit(1)
+    print(f"\n✅ REGRESSION GATE PASSED: hit@10 = {agg['hit_at_10']:.3f} "
+          f"(threshold: {threshold:.3f})")
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
@@ -262,6 +274,8 @@ def main():
             print("📊 Eval run saved to observability DB")
         except Exception as e:
             print(f"  ⚠️ Could not save eval run: {e}")
+
+        check_hit_at_10_gate(agg)
         return
 
     # A/B comparison mode (original behavior)
