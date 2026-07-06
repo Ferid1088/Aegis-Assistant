@@ -39,6 +39,15 @@ def run_install() -> None:
         # lazy-rebuildable SQLAlchemy engine (rag/storage/sql/base.py, also depended on
         # by rag/healthcheck.py), deferred to a future security-hardening pass.
         "POSTGRES_PASSWORD": generate_postgres_password(),
+        # rag/config.py's database_url defaults to localhost:5432, which is only
+        # reachable from the host -- app/worker run *inside* the postgres service's
+        # own Docker network, where the postgres container is reachable at hostname
+        # "postgres", not "localhost". Without this override, /readyz never
+        # succeeds when app/worker run as containers (found by Task 12's real
+        # Docker-backed integration test). Credentials match docker-compose.yml's
+        # postgres service and database_url's own dev-default (also still on the
+        # hardcoded password, per the POSTGRES_PASSWORD note above).
+        "DATABASE_URL": "postgresql+psycopg://postgres:password@postgres:5432/appliance",
         "NEO4J_PASSWORD": generate_neo4j_password(),
         "REDIS_URL": "redis://redis:6379",
         "GLITCHTIP_SECRET_KEY": generate_glitchtip_secret_key(),
