@@ -1,7 +1,6 @@
 services:
   neo4j:
     image: neo4j:5-community
-    ports: ["7474:7474", "7687:7687"]
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_server_memory_heap_max__size: 512M
@@ -14,13 +13,11 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: appliance
-    ports: ["5432:5432"]
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
     volumes:
       - ./data/redis:/data
 
@@ -110,14 +107,14 @@ services:
       - "--path.procfs=/host/proc"
       - "--path.sysfs=/host/sys"
       - "--path.rootfs=/rootfs"
-    ports: ["9100:9100"]
+    ports: ["127.0.0.1:9100:9100"]
 
   prometheus:
     image: prom/prometheus:latest
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    ports: ["9090:9090"]
+    ports: ["127.0.0.1:9090:9090"]
     depends_on:
       - app
       - worker
@@ -131,7 +128,7 @@ services:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
-    ports: ["3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     depends_on:
       - prometheus
 
@@ -153,7 +150,7 @@ services:
       REDIS_URL: redis://redis:6379/1
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
       PORT: 8080
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8080:8080"]
     depends_on:
       - glitchtip-migrate
 
