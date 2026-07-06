@@ -131,3 +131,28 @@ def test_run_install_creates_glitchtip_database_and_writes_its_secret(
     mock_ensure_glitchtip_db.assert_called_once()
     written_values = mock_write_env.call_args.args[1]
     assert "GLITCHTIP_SECRET_KEY" in written_values
+
+
+@patch("install.ensure_glitchtip_database")
+@patch("install.healthcheck_main")
+@patch("install.ensure_first_admin")
+@patch("install.SessionLocal")
+@patch("install.run_store_migrate")
+@patch("install.subprocess.run")
+@patch("install.write_missing_env_vars")
+@patch("install.check_gpu")
+@patch("install.check_ram")
+@patch("install.check_docker")
+def test_run_install_writes_grafana_admin_password(
+    mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
+    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
+    mock_healthcheck, mock_ensure_glitchtip_db,
+):
+    mock_session_local.return_value = MagicMock()
+    mock_ensure_admin.return_value = None
+
+    import install
+    install.run_install()
+
+    written_values = mock_write_env.call_args.args[1]
+    assert "GRAFANA_ADMIN_PASSWORD" in written_values

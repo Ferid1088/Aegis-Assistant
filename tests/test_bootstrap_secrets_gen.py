@@ -38,3 +38,12 @@ def test_generate_glitchtip_secret_key_returns_a_nonempty_string():
 
     assert isinstance(key, str)
     assert len(key) > 20
+
+
+def test_generate_grafana_admin_password_returns_a_nonempty_string():
+    from rag.bootstrap.secrets_gen import generate_grafana_admin_password
+
+    password = generate_grafana_admin_password()
+
+    assert isinstance(password, str)
+    assert len(password) > 15

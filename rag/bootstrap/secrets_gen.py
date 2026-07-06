@@ -21,3 +21,7 @@ def generate_neo4j_password() -> str:
 
 def generate_glitchtip_secret_key() -> str:
     return secrets.token_urlsafe(48)
+
+
+def generate_grafana_admin_password() -> str:
+    return secrets.token_urlsafe(24)

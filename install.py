@@ -12,7 +12,7 @@ from rag.bootstrap.first_admin import ensure_first_admin
 from rag.bootstrap.glitchtip_db import ensure_glitchtip_database
 from rag.bootstrap.prereqs import check_docker, check_gpu, check_ram
 from rag.bootstrap.secrets_gen import (
-    generate_glitchtip_secret_key, generate_jwt_secret, generate_keystore_master_key,
+    generate_glitchtip_secret_key, generate_grafana_admin_password, generate_jwt_secret, generate_keystore_master_key,
     generate_neo4j_password, generate_postgres_password,
 )
 from rag.config import settings
@@ -42,6 +42,7 @@ def run_install() -> None:
         "NEO4J_PASSWORD": generate_neo4j_password(),
         "REDIS_URL": "redis://redis:6379",
         "GLITCHTIP_SECRET_KEY": generate_glitchtip_secret_key(),
+        "GRAFANA_ADMIN_PASSWORD": generate_grafana_admin_password(),
     })
     if written:
         print(f"Generated: {', '.join(written)}")
