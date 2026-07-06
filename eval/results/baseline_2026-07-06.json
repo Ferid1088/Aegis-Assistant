@@ -1,0 +1,30 @@
+{
+  "aggregate": {
+    "date": "2026-07-06",
+    "num_questions": 3,
+    "golden_set": "eval/golden_set.jsonl"
+  },
+  "per_question": [
+    {
+      "question": "",
+      "faithfulness": NaN,
+      "answer_relevancy": NaN,
+      "context_precision": NaN,
+      "context_recall": NaN
+    },
+    {
+      "question": "",
+      "faithfulness": NaN,
+      "answer_relevancy": NaN,
+      "context_precision": NaN,
+      "context_recall": NaN
+    },
+    {
+      "question": "",
+      "faithfulness": NaN,
+      "answer_relevancy": NaN,
+      "context_precision": NaN,
+      "context_recall": NaN
+    }
+  ]
+}

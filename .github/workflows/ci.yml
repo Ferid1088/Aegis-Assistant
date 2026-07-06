@@ -65,3 +65,77 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
+
+  eval-harness:
+    needs: unit-tests
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      HF_HOME: ${{ github.workspace }}/.hf-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-qwen2.5-7b
+
+      - name: Cache embedding/reranker models
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.HF_HOME }}
+          key: hf-models-bge-m3-bge-reranker-v2-m3
+
+      - name: Install and start Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:11434/ && break
+            sleep 2
+          done
+
+      - name: Pull the judge model
+        run: ollama pull qwen2.5:7b
+
+      - name: Bring up Postgres and Redis (no app/worker/neo4j needed here)
+        run: docker compose up -d postgres redis
+
+      - name: "Seed golden Qdrant data (collection A: production ingestion)"
+        run: uv run python run_ingest.py docs/TV_L.pdf
+
+      - name: "Seed golden Qdrant data (collection B: table-aware variant)"
+        run: uv run python eval/ingest_variant_b.py
+
+      - name: "Table regression gate (hard gate: hit@10 == 1.0)"
+        run: uv run python eval/table_ab.py --collection documents_tabstruct
+
+      - name: Ragas eval (report only, no threshold)
+        run: uv run python eval/run_eval.py
+
+      - name: Upload/chat round-trip (needs Ollama + Postgres + Redis, set up above)
+        run: uv run pytest tests/integration/test_upload_and_chat_flow.py -v -s
+
+      - name: Upload eval reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: eval/results/
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
