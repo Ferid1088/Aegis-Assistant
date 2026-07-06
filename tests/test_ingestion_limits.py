@@ -93,3 +93,50 @@ def test_upload_rejects_when_queue_limit_reached(mock_check, client, auth_header
     )
 
     assert resp.status_code == 429
+
+
+@patch("rag.api.routers.documents.decrement_queued_ingestion")
+@patch("rag.api.routers.documents.check_and_increment_queued_ingestion", return_value=True)
+@patch(
+    "rag.api.routers.documents.ingestion_job_service.create_job",
+    side_effect=RuntimeError("db write failed"),
+)
+def test_upload_decrements_counter_when_job_creation_fails_after_increment(
+    mock_create_job, mock_check, mock_decrement, client, auth_headers,
+):
+    resp = client.post(
+        "/api/v1/documents", headers=auth_headers,
+        files={"file": ("t.pdf", b"%PDF-1.4", "application/pdf")},
+    )
+
+    assert resp.status_code == 500
+    mock_decrement.assert_called_once()
+
+
+@patch("rag.api.routers.documents.decrement_queued_ingestion")
+@patch("rag.api.routers.documents.check_and_increment_queued_ingestion", return_value=True)
+@patch("rag.api.routers.documents.run_ingestion")
+def test_upload_decrements_counter_when_enqueue_fails(
+    mock_run_ingestion, mock_check, mock_decrement, client, auth_headers,
+):
+    mock_run_ingestion.delay.side_effect = ConnectionError("broker unreachable")
+
+    resp = client.post(
+        "/api/v1/documents", headers=auth_headers,
+        files={"file": ("t.pdf", b"%PDF-1.4", "application/pdf")},
+    )
+
+    assert resp.status_code == 500
+    mock_decrement.assert_called_once()
+
+
+@patch("rag.crosscutting.security.ingestion_limits._redis_client")
+def test_check_and_increment_sets_a_ttl_backstop_on_the_counter(mock_client):
+    mock_client.incr.return_value = 1
+
+    check_and_increment_queued_ingestion("user-1", max_queued=5)
+
+    mock_client.expire.assert_called_once()
+    args, _ = mock_client.expire.call_args
+    assert args[0] == "ingestion_queued:user-1"
+    assert args[1] > 0

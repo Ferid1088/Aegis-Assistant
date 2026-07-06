@@ -1,3 +1,5 @@
+import stat
+
 from rag.bootstrap.tls_cert import ensure_tls_certificate
 
 
@@ -12,6 +14,16 @@ def test_generates_cert_and_key_when_missing(tmp_path):
     assert cert_bytes.startswith(b"-----BEGIN CERTIFICATE-----")
     key_bytes = (certs_dir / "key.pem").read_bytes()
     assert key_bytes.startswith(b"-----BEGIN PRIVATE KEY-----")
+
+
+def test_generated_key_is_owner_read_write_only(tmp_path):
+    certs_dir = tmp_path / "certs"
+
+    ensure_tls_certificate(certs_dir)
+
+    key_path = certs_dir / "key.pem"
+    mode = stat.S_IMODE(key_path.stat().st_mode)
+    assert mode == 0o600
 
 
 def test_does_not_overwrite_an_existing_certificate(tmp_path):

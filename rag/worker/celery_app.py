@@ -43,8 +43,14 @@ def _clear_task_id(**kwargs):
 
 
 @task_postrun.connect
-def _decrement_ingestion_queue_count(sender=None, args=None, **kwargs):
+def _decrement_ingestion_queue_count(sender=None, args=None, state=None, **kwargs):
     if sender is None or sender.name != "rag.worker.tasks.run_ingestion":
+        return
+    # task_postrun fires after every attempt, including ones that end via a
+    # Retry exception (state="RETRY") -- there's only ever one INCR per job
+    # (at upload time), so decrementing on retry attempts would drift the
+    # counter negative. Only decrement once the job has truly finished.
+    if state not in ("SUCCESS", "FAILURE"):
         return
     job_id = args[0] if args else None
     if job_id is None:

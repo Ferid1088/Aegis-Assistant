@@ -9,7 +9,9 @@ from rag.api.schemas.documents import (
     JobResponse, JobStatusResponse, LogicalDocumentDetailResponse, LogicalDocumentResponse, VersionResponse,
 )
 from rag.config import settings
-from rag.crosscutting.security.ingestion_limits import check_and_increment_queued_ingestion
+from rag.crosscutting.security.ingestion_limits import (
+    check_and_increment_queued_ingestion, decrement_queued_ingestion,
+)
 from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import ingestion_job_service
 from rag.storage.document_store import SQLiteDocumentStore
@@ -48,13 +50,18 @@ def upload_document(
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
     staged_path = upload_dir / f"{job_id}.pdf"
-    staged_path.write_bytes(contents)
 
-    job = ingestion_job_service.create_job(
-        db, uploaded_by=current.user.id, filename=file.filename or "upload.pdf",
-        staged_path=str(staged_path), doc_version=None,
-    )
-    run_ingestion.delay(str(job.id))
+    try:
+        staged_path.write_bytes(contents)
+
+        job = ingestion_job_service.create_job(
+            db, uploaded_by=current.user.id, filename=file.filename or "upload.pdf",
+            staged_path=str(staged_path), doc_version=None,
+        )
+        run_ingestion.delay(str(job.id))
+    except Exception:
+        decrement_queued_ingestion(str(current.user.id))
+        raise
     return JobResponse(job_id=str(job.id))
 
 

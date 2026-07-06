@@ -48,4 +48,5 @@ def ensure_tls_certificate(certs_dir: Path = Path("certs")) -> None:
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption(),
     ))
+    key_path.chmod(0o600)
     cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
