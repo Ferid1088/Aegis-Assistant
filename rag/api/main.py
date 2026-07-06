@@ -1,5 +1,6 @@
 import uuid
 
+import sentry_sdk
 import structlog
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -9,12 +10,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from rag.api.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
 from rag.api.routers import admin_audit, admin_rbac, admin_users, auth as auth_router, conversations, documents
+from rag.config import settings
 from rag.healthcheck import check_postgres
 from rag.observability.logging_config import configure_logging
 
 
 def create_app() -> FastAPI:
     configure_logging()
+
+    if settings.glitchtip_dsn:
+        sentry_sdk.init(dsn=settings.glitchtip_dsn, traces_sample_rate=0.0)
 
     app = FastAPI(title="RAG Appliance API", version="1.0", openapi_url="/api/v1/openapi.json", docs_url="/api/v1/docs")
 

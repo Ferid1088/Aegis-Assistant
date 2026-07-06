@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     cache_ttl_embed: int = 86400       # 24 h
     cache_ttl_answer: int = 900        # 15 min
 
+    # GlitchTip (self-hosted, Sentry-compatible error tracking) -- empty = disabled,
+    # matching redis_url's convention
+    glitchtip_dsn: str = ""
+
     # Version filter — activate AFTER re-indexing with is_current in payload
     version_filter: bool = False
 

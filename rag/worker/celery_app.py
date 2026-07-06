@@ -1,3 +1,4 @@
+import sentry_sdk
 import structlog
 from celery import Celery
 from celery.signals import task_postrun, task_prerun
@@ -7,6 +8,9 @@ from rag.observability.logging_config import configure_logging
 from rag.observability.queue_metrics import start_queue_depth_exporter
 
 configure_logging()
+
+if settings.glitchtip_dsn:
+    sentry_sdk.init(dsn=settings.glitchtip_dsn, traces_sample_rate=0.0)
 
 celery_app = Celery("rag_worker", broker=settings.redis_url, backend=settings.redis_url)
 celery_app.conf.task_serializer = "json"

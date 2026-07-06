@@ -30,6 +30,7 @@ dependencies = [
     "qdrant-client>=1.18.0",
     "qrcode[pil]>=8.2",
     "ragas==0.2.12",
+    "sentry-sdk>=1.40.0",
     "redis>=5.0",
     "sqlalchemy>=2.0.51",
     "structlog",
