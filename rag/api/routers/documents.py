@@ -1,7 +1,7 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user, require_permission
@@ -9,6 +9,7 @@ from rag.api.schemas.documents import (
     JobResponse, JobStatusResponse, LogicalDocumentDetailResponse, LogicalDocumentResponse, VersionResponse,
 )
 from rag.config import settings
+from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import ingestion_job_service
 from rag.storage.document_store import SQLiteDocumentStore
 from rag.storage.sql.base import get_db
@@ -25,7 +26,9 @@ def _job_to_response(job) -> JobStatusResponse:
 
 
 @router.post("", response_model=JobResponse, status_code=202)
+@limiter.limit("5/minute")
 def upload_document(
+    request: Request,
     file: UploadFile,
     current: AuthenticatedUser = Depends(require_permission("documents:upload")),
     db: Session = Depends(get_db),

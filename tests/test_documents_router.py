@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from rag.api.routers import documents
+from rag.crosscutting.security.rate_limit import limiter
 from rag.crosscutting.security.tokens import create_access_token
 from rag.storage.sql.base import get_db
 from rag.storage.sql.models import Role, RolePermission, User, UserRole, UserSession
@@ -43,6 +44,7 @@ def client(db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(config.settings, "upload_dir", str(tmp_path / "uploads"))
 
     app = FastAPI()
+    app.state.limiter = limiter
     app.dependency_overrides[get_db] = lambda: db_session
     app.include_router(documents.router, prefix="/api/v1/documents")
     return TestClient(app, raise_server_exceptions=False)
