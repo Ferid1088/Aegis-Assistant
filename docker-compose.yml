@@ -73,6 +73,38 @@ services:
       - worker
       - node_exporter
 
+  glitchtip-migrate:
+    image: glitchtip/glitchtip:latest
+    command: ./manage.py migrate
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
+      REDIS_URL: redis://redis:6379/1
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+    depends_on:
+      - postgres
+      - redis
+
+  glitchtip-web:
+    image: glitchtip/glitchtip:latest
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
+      REDIS_URL: redis://redis:6379/1
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+      PORT: 8080
+    ports: ["8080:8080"]
+    depends_on:
+      - glitchtip-migrate
+
+  glitchtip-worker:
+    image: glitchtip/glitchtip:latest
+    command: ./bin/run-celery-with-beat.sh
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
+      REDIS_URL: redis://redis:6379/1
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+    depends_on:
+      - glitchtip-migrate
+
 volumes:
   hf_models:
   prometheus_data:
