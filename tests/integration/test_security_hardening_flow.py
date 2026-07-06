@@ -33,7 +33,9 @@ def _port_is_closed(host: str, port: int) -> bool:
 def test_https_serves_the_app_with_security_headers():
     resp = httpx.get("https://localhost/healthz", verify=False, timeout=5)
     assert resp.status_code == 200
-    assert "strict-transport-security" in {k.lower() for k in resp.headers}
+    header_names = {k.lower() for k in resp.headers}
+    assert "strict-transport-security" in header_names
+    assert "content-security-policy" in header_names
 
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")
