@@ -73,6 +73,18 @@ services:
       - worker
       - node_exporter
 
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on:
+      - prometheus
+
   glitchtip-migrate:
     image: glitchtip/glitchtip:latest
     command: ./manage.py migrate
@@ -108,3 +120,4 @@ services:
 volumes:
   hf_models:
   prometheus_data:
+  grafana_data:

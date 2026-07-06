@@ -1,0 +1,17 @@
+{
+  "title": "Celery Queue Depth",
+  "uid": "queue-depth",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Pending Tasks",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "targets": [
+        {"expr": "celery_queue_depth", "refId": "A"}
+      ]
+    }
+  ]
+}

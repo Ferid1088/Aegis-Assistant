@@ -1,0 +1,17 @@
+{
+  "title": "API Metrics",
+  "uid": "api-metrics",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "targets": [
+        {"expr": "rate(http_requests_total[5m])", "refId": "A"}
+      ]
+    }
+  ]
+}
