@@ -17,3 +17,7 @@ def generate_postgres_password() -> str:
 
 def generate_neo4j_password() -> str:
     return secrets.token_urlsafe(24)
+
+
+def generate_glitchtip_secret_key() -> str:
+    return secrets.token_urlsafe(48)

@@ -9,9 +9,11 @@ from pathlib import Path
 
 from rag.bootstrap.env_writer import read_env_value, write_missing_env_vars
 from rag.bootstrap.first_admin import ensure_first_admin
+from rag.bootstrap.glitchtip_db import ensure_glitchtip_database
 from rag.bootstrap.prereqs import check_docker, check_gpu, check_ram
 from rag.bootstrap.secrets_gen import (
-    generate_jwt_secret, generate_keystore_master_key, generate_neo4j_password, generate_postgres_password,
+    generate_glitchtip_secret_key, generate_jwt_secret, generate_keystore_master_key,
+    generate_neo4j_password, generate_postgres_password,
 )
 from rag.config import settings
 from rag.healthcheck import main as healthcheck_main
@@ -39,6 +41,7 @@ def run_install() -> None:
         "POSTGRES_PASSWORD": generate_postgres_password(),
         "NEO4J_PASSWORD": generate_neo4j_password(),
         "REDIS_URL": "redis://redis:6379",
+        "GLITCHTIP_SECRET_KEY": generate_glitchtip_secret_key(),
     })
     if written:
         print(f"Generated: {', '.join(written)}")
@@ -55,6 +58,8 @@ def run_install() -> None:
 
     print("== Starting services ==")
     subprocess.run(["docker", "compose", "up", "-d"], check=True)
+
+    ensure_glitchtip_database()
 
     print("== Running migrations ==")
     subprocess.run(["alembic", "upgrade", "head"], check=True)

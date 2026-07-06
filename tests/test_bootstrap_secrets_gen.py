@@ -29,3 +29,12 @@ def test_generate_neo4j_password_is_nonempty_and_random():
     b = generate_neo4j_password()
     assert len(a) > 10
     assert a != b
+
+
+def test_generate_glitchtip_secret_key_returns_a_nonempty_string():
+    from rag.bootstrap.secrets_gen import generate_glitchtip_secret_key
+
+    key = generate_glitchtip_secret_key()
+
+    assert isinstance(key, str)
+    assert len(key) > 20
