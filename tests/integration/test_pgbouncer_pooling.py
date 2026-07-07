@@ -5,6 +5,7 @@ connections against Postgres, not just "the container starts".
 
 Run with: uv run pytest tests/integration/test_pgbouncer_pooling.py -v -s
 """
+import os
 import subprocess
 import time
 
@@ -72,7 +73,7 @@ def _wait_for_exec_ready(service: str, timeout_s: float = 60.0) -> None:
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")
 def test_pgbouncer_pools_connections_below_client_count(tmp_path):
-    env_override = {**__import__("os").environ, "PGBOUNCER_POOL_SIZE": "5"}
+    env_override = {**os.environ, "PGBOUNCER_POOL_SIZE": "5"}
     subprocess.run(
         ["docker", "compose", "up", "-d", "--force-recreate", "pgbouncer"],
         check=True, env=env_override,
