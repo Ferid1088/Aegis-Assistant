@@ -17,6 +17,31 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
 
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/appliance
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      # Without this, edoburu/pgbouncer's entrypoint defaults AUTH_TYPE to
+      # "md5", which makes it store an MD5-hashed credential in userlist.txt
+      # instead of the plaintext password -- confirmed for real: pgbouncer
+      # then cannot complete a SCRAM handshake against its own backend
+      # connection to Postgres (which defaults to password_encryption =
+      # scram-sha-256), failing every connection with "cannot do SCRAM
+      # authentication: wrong password type". Matching AUTH_TYPE to
+      # Postgres's own scram-sha-256 default makes the entrypoint store the
+      # real plaintext password instead, which works for both legs (client
+      # -> pgbouncer and pgbouncer -> postgres).
+      AUTH_TYPE: scram-sha-256
+      # Overridable for the pooling-proof integration test (Task 3, Step 4)
+      # via `PGBOUNCER_POOL_SIZE=5 docker compose up -d --force-recreate
+      # pgbouncer` -- sized against §12.6's ~100-user reference tier by
+      # default, well under Postgres's own default max_connections=100.
+      DEFAULT_POOL_SIZE: "${PGBOUNCER_POOL_SIZE:-20}"
+    depends_on:
+      - postgres
+
   qdrant:
     image: qdrant/qdrant:latest
     ports: ["127.0.0.1:6333:6333"]
@@ -42,7 +67,7 @@ services:
       # container-only hostname. ${POSTGRES_PASSWORD:-password} matches the
       # postgres service's own interpolation above (Phase 8.10b) -- both resolve
       # to the same real generated secret once install.py writes one into .env.
-      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/appliance
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-password}@pgbouncer:5432/appliance
       # Same host-vs-container split as DATABASE_URL above: install.py writes a
       # host-reachable QDRANT_URL (http://localhost:6333, via qdrant's loopback
       # port) into the shared .env for its own host-side healthcheck/migration
@@ -72,6 +97,7 @@ services:
     depends_on:
       - redis
       - postgres
+      - pgbouncer
       - qdrant
     volumes:
       - ./data:/app/data
@@ -83,7 +109,7 @@ services:
     command: uv run uvicorn rag.api.main:create_app --factory --host 0.0.0.0 --port 8000
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/appliance
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-password}@pgbouncer:5432/appliance
       # Same host-vs-container split as DATABASE_URL above: install.py writes a
       # host-reachable QDRANT_URL (http://localhost:6333, via qdrant's loopback
       # port) into the shared .env for its own host-side healthcheck/migration
@@ -108,6 +134,7 @@ services:
     depends_on:
       - redis
       - postgres
+      - pgbouncer
       - qdrant
     volumes:
       - ./data:/app/data
