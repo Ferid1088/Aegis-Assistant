@@ -11,7 +11,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_DB: appliance
     ports: ["127.0.0.1:5432:5432"]
     volumes:
@@ -39,13 +39,10 @@ services:
       # service hostname instead. Set here (environment: overrides env_file: for the
       # same key), not written into the shared .env file, so install.py's own
       # host-side Postgres access (which reads that same .env) is never broken by a
-      # container-only hostname. Hardcoded "password" literal (not
-      # ${POSTGRES_PASSWORD}) deliberately -- the postgres service below is also
-      # still hardcoded to that same literal (install.py generates a
-      # POSTGRES_PASSWORD secret, but nothing consumes it yet; see install.py's
-      # comment), so interpolating it here would authenticate with the wrong
-      # password the moment a real install generates a non-default value.
-      DATABASE_URL: postgresql+psycopg://postgres:password@postgres:5432/appliance
+      # container-only hostname. ${POSTGRES_PASSWORD:-password} matches the
+      # postgres service's own interpolation above (Phase 8.10b) -- both resolve
+      # to the same real generated secret once install.py writes one into .env.
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/appliance
       # Same host-vs-container split as DATABASE_URL above: install.py writes a
       # host-reachable QDRANT_URL (http://localhost:6333, via qdrant's loopback
       # port) into the shared .env for its own host-side healthcheck/migration
@@ -86,7 +83,7 @@ services:
     command: uv run uvicorn rag.api.main:create_app --factory --host 0.0.0.0 --port 8000
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:password@postgres:5432/appliance
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/appliance
       # Same host-vs-container split as DATABASE_URL above: install.py writes a
       # host-reachable QDRANT_URL (http://localhost:6333, via qdrant's loopback
       # port) into the shared .env for its own host-side healthcheck/migration

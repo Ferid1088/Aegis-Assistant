@@ -19,7 +19,7 @@ from rag.bootstrap.tls_cert import ensure_tls_certificate
 from rag.bootstrap.wait_for_postgres import wait_for_postgres_ready
 from rag.config import settings
 from rag.healthcheck import main as healthcheck_main
-from rag.storage.sql.base import SessionLocal
+from rag.storage.sql.base import SessionLocal, reset_engine
 
 import run_store_migrate
 
@@ -38,11 +38,11 @@ def run_install() -> None:
     written = write_missing_env_vars(env_path, {
         "JWT_SECRET_KEY": generate_jwt_secret(),
         "KEYSTORE_MASTER_KEY": generate_keystore_master_key(),
-        # Unlike NEO4J_PASSWORD below, this is written but not yet consumed anywhere --
-        # docker-compose.yml's postgres service and rag/config.py's database_url both
-        # stay on the hardcoded dev-default password. Wiring this up properly needs a
-        # lazy-rebuildable SQLAlchemy engine (rag/storage/sql/base.py, also depended on
-        # by rag/healthcheck.py), deferred to a future security-hardening pass.
+        # Consumed by docker-compose.yml's postgres/pgbouncer/app/worker services
+        # (interpolated via ${POSTGRES_PASSWORD:-password}) and, in-process, by
+        # the database_url resync below (Phase 8.10b). Only takes effect against
+        # a genuinely fresh Postgres data volume -- Postgres (like Neo4j) applies
+        # POSTGRES_PASSWORD only during its first-ever initdb on an empty volume.
         "POSTGRES_PASSWORD": generate_postgres_password(),
         "NEO4J_PASSWORD": generate_neo4j_password(),
         "REDIS_URL": "redis://redis:6379",
@@ -69,6 +69,18 @@ def run_install() -> None:
     # would silently run against embedded Qdrant (./data/qdrant via QdrantClient(path=...))
     # instead of the real `qdrant` server container this whole sub-phase stands up.
     settings.qdrant_url = read_env_value(env_path, "QDRANT_URL") or settings.qdrant_url
+    # Same class of bug as neo4j_password/qdrant_url above, but database_url
+    # can't use the same `or` passthrough idiom directly -- POSTGRES_PASSWORD
+    # is only the password component, not the full connection string. Rebuild
+    # it here so run_store_migrate.main()/first-admin creation/healthcheck_main()
+    # below (all later in this same process) use the real generated password
+    # instead of the stale import-time dev-default. reset_engine() clears
+    # rag/storage/sql/base.py's cached engine so the next SessionLocal() call
+    # picks up the rebuilt URL (Phase 8.10b).
+    postgres_password = read_env_value(env_path, "POSTGRES_PASSWORD")
+    if postgres_password:
+        settings.database_url = f"postgresql+psycopg://postgres:{postgres_password}@localhost:5432/appliance"
+        reset_engine()
 
     print("== Starting services ==")
     # Must exist before `docker compose up` touches it: on Linux, dockerd (running
