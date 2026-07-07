@@ -162,7 +162,7 @@ services:
     image: glitchtip/glitchtip:latest
     command: ./manage.py migrate
     environment:
-      DATABASE_URL: postgresql://postgres:password@postgres:5432/glitchtip
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
       REDIS_URL: redis://redis:6379/1
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
     depends_on:
@@ -172,7 +172,7 @@ services:
   glitchtip-web:
     image: glitchtip/glitchtip:latest
     environment:
-      DATABASE_URL: postgresql://postgres:password@postgres:5432/glitchtip
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
       REDIS_URL: redis://redis:6379/1
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
       PORT: 8080
@@ -184,7 +184,7 @@ services:
     image: glitchtip/glitchtip:latest
     command: ./bin/run-celery-with-beat.sh
     environment:
-      DATABASE_URL: postgresql://postgres:password@postgres:5432/glitchtip
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
       REDIS_URL: redis://redis:6379/1
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
     depends_on:

@@ -26,8 +26,9 @@ def test_compose_config_renders_generated_postgres_password_everywhere():
         ["docker", "compose", "config"], capture_output=True, text=True, check=True, env=env,
     )
     rendered = result.stdout
-    # postgres, app, worker -- pgbouncer joins this list in Task 3.
-    assert rendered.count("test-generated-secret-123") >= 3
+    # postgres, app, worker, glitchtip-migrate, glitchtip-web, glitchtip-worker
+    # -- pgbouncer joins this list in Task 3.
+    assert rendered.count("test-generated-secret-123") >= 6
 
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")
@@ -37,3 +38,4 @@ def test_compose_config_falls_back_to_dev_default_password_when_unset():
         ["docker", "compose", "config"], capture_output=True, text=True, check=True, env=env,
     )
     assert "postgres:password@postgres:5432/appliance" in result.stdout
+    assert result.stdout.count("postgres:password@postgres:5432/glitchtip") == 3
