@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ACCESS_COOKIE, REFRESH_COOKIE, setSessionCookies } from "@/lib/auth-cookies";
-
-const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:8000";
-
-async function refreshTokens(refreshToken: string): Promise<{ access_token: string; refresh_token: string } | null> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  if (!res.ok) return null;
-  return res.json();
-}
+import { API_BASE_URL, refreshTokens } from "@/lib/backend";
 
 async function isAccessTokenValid(accessToken: string): Promise<boolean> {
   const res = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
@@ -39,10 +28,12 @@ export async function middleware(request: NextRequest) {
 
   const rotated = await refreshTokens(refreshToken);
   if (!rotated) {
-    const response = NextResponse.redirect(new URL("/login", request.url));
-    response.cookies.delete(ACCESS_COOKIE);
-    response.cookies.delete(REFRESH_COOKIE);
-    return response;
+    // Do NOT clear cookies here: a concurrent request (e.g. a client-side fetch through the
+    // proxy route) may have already won the refresh race and rotated to a fresh, valid pair.
+    // Clearing cookies on this "losing" response would wipe out that valid session. If the
+    // session really is dead, the redirect below still sends the user to /login; the only
+    // place that actively clears cookies is the explicit /api/auth/logout route.
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   const forwardedHeaders = new Headers(request.headers);

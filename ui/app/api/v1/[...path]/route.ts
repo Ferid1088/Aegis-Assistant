@@ -1,19 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ACCESS_COOKIE, REFRESH_COOKIE, clearSessionCookies, setSessionCookies } from "@/lib/auth-cookies";
-
-const API_BASE_URL = process.env.API_BASE_URL || "http://localhost:8000";
+import { ACCESS_COOKIE, REFRESH_COOKIE, setSessionCookies } from "@/lib/auth-cookies";
+import { API_BASE_URL, refreshTokens } from "@/lib/backend";
 
 type RouteContext = { params: { path: string[] } };
-
-async function refreshTokens(refreshToken: string): Promise<{ access_token: string; refresh_token: string } | null> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  if (!res.ok) return null;
-  return res.json();
-}
 
 async function forward(request: NextRequest, path: string[], accessToken: string): Promise<Response> {
   const url = `${API_BASE_URL}/api/v1/${path.join("/")}${request.nextUrl.search}`;
@@ -61,9 +50,12 @@ async function handle(request: NextRequest, context: RouteContext) {
   }
 
   if (backendRes.status === 401) {
-    const response = NextResponse.json({ code: "unauthorized", message: "session expired" }, { status: 401 });
-    clearSessionCookies(response);
-    return response;
+    // Do NOT clear cookies here: a concurrent request (e.g. a page navigation handled by
+    // middleware.ts) may have already won the refresh race and rotated to a fresh, valid pair.
+    // Clearing cookies on this "losing" response would wipe out that valid session. If the
+    // session really is dead, the 401 below still bounces the client to /login; the only place
+    // that actively clears cookies is the explicit /api/auth/logout route.
+    return NextResponse.json({ code: "unauthorized", message: "session expired" }, { status: 401 });
   }
 
   const body = await backendRes.arrayBuffer();
