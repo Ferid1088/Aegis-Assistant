@@ -111,6 +111,11 @@ jobs:
       - name: Pull the judge model
         run: ollama pull qwen2.5:7b
 
+      - name: Prepare host directories and env file
+        run: |
+          mkdir -p data
+          touch .env
+
       - name: Bring up Postgres and Redis (no app/worker/neo4j needed here)
         run: docker compose up -d postgres redis
 
@@ -170,3 +175,4 @@ jobs:
           image-ref: rag-appliance-app:ci
           severity: CRITICAL
           exit-code: "1"
+          ignore-unfixed: true

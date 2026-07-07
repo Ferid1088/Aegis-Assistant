@@ -2,6 +2,9 @@
 data/
 .env
 keys/update_signing_privkey.pem
+# TLS key/cert install.py generates for the nginx service -- nginx gets it via
+# a bind mount (./certs:/etc/nginx/certs), never via the image build context.
+certs/
 .venv/
 **/__pycache__/
 *.pyc

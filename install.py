@@ -63,6 +63,15 @@ def run_install() -> None:
     settings.neo4j_password = read_env_value(env_path, "NEO4J_PASSWORD") or settings.neo4j_password
 
     print("== Starting services ==")
+    # Must exist before `docker compose up` touches it: on Linux, dockerd (running
+    # as root) auto-creates missing bind-mount host directories -- if `./data`
+    # itself doesn't exist yet, it gets created root-owned, and every host-side
+    # write under it (SQLite document store, Qdrant, uploads) then fails with
+    # "unable to open database file" for the unprivileged user running this
+    # script. Creating it first as that user keeps ownership sane; the
+    # postgres/neo4j/redis subdirectories Docker still creates underneath it are
+    # fine root-owned since no host-side code writes into those directly.
+    Path("data").mkdir(exist_ok=True)
     subprocess.run(["docker", "compose", "up", "-d"], check=True)
 
     # `up -d` returns once containers are started, not once postgres has finished
