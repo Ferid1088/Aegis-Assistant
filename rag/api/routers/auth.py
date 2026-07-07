@@ -1,15 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user
 from rag.api.schemas.auth import (
     LoginRequest, LoginResponse, MeResponse, MfaEnrollResponse, MfaVerifyRequest,
-    RefreshRequest, RefreshResponse,
+    RefreshRequest, RefreshResponse, SessionNav, SessionResponse, SessionUser,
 )
 from rag.crosscutting.security import local_auth, session_service
 from rag.crosscutting.security.audit_events import record_mfa_enrolled
 from rag.crosscutting.security.mfa import encrypt_secret, generate_totp_secret, totp_uri
 from rag.storage.sql.base import get_db
+from rag.storage.sql.models import Department
 
 router = APIRouter()
 
@@ -70,4 +72,37 @@ def me(current: AuthenticatedUser = Depends(get_current_user)) -> MeResponse:
     return MeResponse(
         id=str(current.user.id), username=current.user.username,
         roles=current.auth_subject.roles, effective_levels=current.auth_subject.effective_levels,
+    )
+
+
+session_router = APIRouter()
+
+
+@session_router.get("/session", response_model=SessionResponse)
+def get_session(
+    current: AuthenticatedUser = Depends(get_current_user), db: Session = Depends(get_db),
+) -> SessionResponse:
+    department_name = None
+    if current.user.department_id is not None:
+        department_name = db.execute(
+            select(Department.name).where(Department.id == current.user.department_id)
+        ).scalar_one_or_none()
+
+    role = current.auth_subject.roles[0] if current.auth_subject.roles else "—"
+    is_admin = any(p.startswith("admin:") for p in current.auth_subject.permissions)
+
+    return SessionResponse(
+        user=SessionUser(
+            id=str(current.user.id),
+            username=current.user.username,
+            name=current.user.username,
+            role=role,
+            department=department_name,
+            status="active",
+        ),
+        edition="enterprise",
+        nav=SessionNav(
+            chat=True, search=True, documents=True,
+            admin=is_admin, evaluation=is_admin, audit=is_admin, system=is_admin,
+        ),
     )

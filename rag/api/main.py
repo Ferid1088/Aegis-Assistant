@@ -64,6 +64,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     app.include_router(auth_router.router, prefix="/api/v1/auth", tags=["auth"])
+    app.include_router(auth_router.session_router, prefix="/api/v1", tags=["auth"])
     app.include_router(admin_rbac.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(admin_users.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(admin_audit.router, prefix="/api/v1/admin", tags=["admin"])
