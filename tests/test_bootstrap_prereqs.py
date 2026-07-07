@@ -40,7 +40,8 @@ def test_check_ram_prints_ok_when_above_floor(mock_vmem, capsys):
 @patch("rag.bootstrap.prereqs.shutil.which")
 def test_check_gpu_reports_no_gpu_when_nvidia_smi_absent(mock_which, capsys):
     mock_which.return_value = None
-    check_gpu()  # must not raise
+    result = check_gpu()
+    assert result is False
     captured = capsys.readouterr()
     assert "No GPU" in captured.out
 
@@ -48,6 +49,7 @@ def test_check_gpu_reports_no_gpu_when_nvidia_smi_absent(mock_which, capsys):
 @patch("rag.bootstrap.prereqs.shutil.which")
 def test_check_gpu_reports_gpu_when_nvidia_smi_present(mock_which, capsys):
     mock_which.return_value = "/usr/bin/nvidia-smi"
-    check_gpu()  # must not raise
+    result = check_gpu()
+    assert result is True
     captured = capsys.readouterr()
     assert "GPU detected" in captured.out

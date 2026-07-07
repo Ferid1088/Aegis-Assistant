@@ -27,8 +27,10 @@ def check_ram() -> None:
         print(f"✅ RAM OK ({total_gb:.1f} GB)")
 
 
-def check_gpu() -> None:
-    if shutil.which("nvidia-smi") is not None:
+def check_gpu() -> bool:
+    has_gpu = shutil.which("nvidia-smi") is not None
+    if has_gpu:
         print("✅ GPU detected")
     else:
         print("ℹ️  No GPU detected — CPU-only mode")
+    return has_gpu

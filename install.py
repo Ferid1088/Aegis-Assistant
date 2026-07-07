@@ -28,7 +28,7 @@ def run_install() -> None:
     print("== Checking prerequisites ==")
     check_docker()
     check_ram()
-    check_gpu()
+    has_gpu = check_gpu()
 
     print("== Generating TLS certificate ==")
     ensure_tls_certificate()
@@ -54,6 +54,13 @@ def run_install() -> None:
         "QDRANT_URL": "http://localhost:6333",
         "GLITCHTIP_SECRET_KEY": generate_glitchtip_secret_key(),
         "GRAFANA_ADMIN_PASSWORD": generate_grafana_admin_password(),
+        # Phase 8.10c: GPU detected at install time -> vLLM (continuous batching,
+        # the doc's production tier); no GPU -> Ollama (CPU-friendly, matches
+        # rag/config.py's own bare-Settings() default). Only written once, on
+        # first install -- re-running install.py never overwrites an operator's
+        # own LLM_BACKEND choice already sitting in .env.
+        "LLM_BACKEND": "vllm" if has_gpu else "ollama",
+        "VLLM_BASE_URL": "http://localhost:8000/v1",
     })
     if written:
         print(f"Generated: {', '.join(written)}")
@@ -74,6 +81,13 @@ def run_install() -> None:
     # would silently run against embedded Qdrant (./data/qdrant via QdrantClient(path=...))
     # instead of the real `qdrant` server container this whole sub-phase stands up.
     settings.qdrant_url = read_env_value(env_path, "QDRANT_URL") or settings.qdrant_url
+    # Same class of bug as neo4j_password/qdrant_url above: settings.llm_backend
+    # was constructed at import time with the stale "ollama" default -- on a
+    # fresh GPU install, LLM_BACKEND=vllm doesn't exist in .env until
+    # write_missing_env_vars() writes it a few lines above. Without this,
+    # healthcheck_main()'s get_llm() call below would silently keep trying
+    # Ollama even though this install generated a vLLM-targeted LLM_BACKEND.
+    settings.llm_backend = read_env_value(env_path, "LLM_BACKEND") or settings.llm_backend
     # Same class of bug as neo4j_password/qdrant_url above: settings.redis_url
     # was constructed at import time with the "" default -- on a fresh
     # install, REDIS_URL doesn't exist in .env until write_missing_env_vars()
