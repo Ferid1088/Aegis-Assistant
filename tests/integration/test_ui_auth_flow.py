@@ -72,7 +72,11 @@ def backend_and_ui():
     )
     _wait_for(f"{BACKEND_URL}/healthz")
 
-    ui_env = {**os.environ, "API_BASE_URL": BACKEND_URL}
+    # COOKIE_SECURE=false: this test drives the UI over plain HTTP (no TLS termination in
+    # front of `next start`), and a real HTTP client enforces RFC 6265 Secure-cookie semantics
+    # (unlike curl, which doesn't by default) -- without this, aegis_at/aegis_rt would be set
+    # with the Secure attribute and never sent back on any subsequent request.
+    ui_env = {**os.environ, "API_BASE_URL": BACKEND_URL, "COOKIE_SECURE": "false"}
     subprocess.run(["npm", "install"], cwd=UI_DIR, check=True)
     subprocess.run(["npm", "run", "build"], cwd=UI_DIR, check=True, env=ui_env)
     ui_proc = subprocess.Popen(["npm", "run", "start", "--", "-p", str(UI_PORT)], cwd=UI_DIR, env=ui_env)
@@ -143,3 +147,91 @@ def test_logout_clears_cookies(backend_and_ui):
     logout_resp = session.post(f"{UI_URL}/api/auth/logout")
     assert logout_resp.status_code == 200
     assert session.cookies.get("aegis_at") in (None, "")
+
+
+def test_session_endpoint_reachable_through_proxy(backend_and_ui):
+    session = requests.Session()
+    session.post(
+        f"{UI_URL}/api/auth/login",
+        json={"username": "plain-user", "password": "correct-horse-battery-staple"},
+    )
+    resp = session.get(f"{UI_URL}/api/v1/session")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["user"]["username"] == "plain-user"
+    assert body["nav"]["chat"] is True
+    assert body["nav"]["admin"] is False
+
+
+def test_proxy_call_without_cookies_returns_401():
+    resp = requests.get(f"{UI_URL}/api/v1/session")
+    assert resp.status_code == 401
+
+
+def test_reusing_cookies_after_logout_is_rejected(backend_and_ui):
+    session = requests.Session()
+    session.post(
+        f"{UI_URL}/api/auth/login",
+        json={"username": "plain-user", "password": "correct-horse-battery-staple"},
+    )
+    old_cookies = dict(session.cookies)
+
+    session.post(f"{UI_URL}/api/auth/logout")
+
+    stale_session = requests.Session()
+    for name, value in old_cookies.items():
+        stale_session.cookies.set(name, value)
+    resp = stale_session.get(f"{UI_URL}/api/v1/session")
+    assert resp.status_code == 401
+
+
+@pytest.fixture(scope="module")
+def short_ttl_backend_and_ui():
+    engine = create_engine(settings.database_url)
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine)
+    db = session_factory()
+    db.add(User(username="ttl-user", password_hash=hash_password("correct-horse-battery-staple")))
+    db.commit()
+    db.close()
+    engine.dispose()
+
+    backend_port = BACKEND_PORT + 1
+    ui_port = UI_PORT + 1
+    backend_url = f"http://127.0.0.1:{backend_port}"
+    ui_url = f"http://127.0.0.1:{ui_port}"
+
+    backend_env = {**os.environ, "JWT_ACCESS_TTL_SECONDS": "5"}
+    backend_proc = subprocess.Popen(
+        ["uv", "run", "uvicorn", "rag.api.main:create_app", "--factory",
+         "--host", "127.0.0.1", "--port", str(backend_port)],
+        cwd=REPO_ROOT, env=backend_env,
+    )
+    _wait_for(f"{backend_url}/healthz")
+
+    ui_env = {**os.environ, "API_BASE_URL": backend_url, "COOKIE_SECURE": "false"}
+    ui_proc = subprocess.Popen(["npm", "run", "start", "--", "-p", str(ui_port)], cwd=UI_DIR, env=ui_env)
+    _wait_for(ui_url)
+
+    yield {"ui_url": ui_url}
+
+    ui_proc.send_signal(signal.SIGTERM)
+    ui_proc.wait(timeout=10)
+    backend_proc.send_signal(signal.SIGTERM)
+    backend_proc.wait(timeout=10)
+    Base.metadata.drop_all(create_engine(settings.database_url))
+
+
+def test_expired_access_token_transparently_refreshes(short_ttl_backend_and_ui):
+    ui_url = short_ttl_backend_and_ui["ui_url"]
+    session = requests.Session()
+    session.post(f"{ui_url}/api/auth/login", json={"username": "ttl-user", "password": "correct-horse-battery-staple"})
+    old_access = session.cookies.get("aegis_at")
+
+    time.sleep(6)  # backend for this fixture was started with JWT_ACCESS_TTL_SECONDS=5
+
+    resp = session.get(f"{ui_url}/api/v1/session")
+    assert resp.status_code == 200
+    assert resp.json()["user"]["username"] == "ttl-user"
+    assert session.cookies.get("aegis_at") != old_access
