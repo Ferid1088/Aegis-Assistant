@@ -46,6 +46,7 @@ def run_install() -> None:
         "POSTGRES_PASSWORD": generate_postgres_password(),
         "NEO4J_PASSWORD": generate_neo4j_password(),
         "REDIS_URL": "redis://redis:6379",
+        "QDRANT_URL": "http://localhost:6333",
         "GLITCHTIP_SECRET_KEY": generate_glitchtip_secret_key(),
         "GRAFANA_ADMIN_PASSWORD": generate_grafana_admin_password(),
     })

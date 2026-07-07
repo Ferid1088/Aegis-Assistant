@@ -17,6 +17,12 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["127.0.0.1:6333:6333"]
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+
   redis:
     image: redis:7-alpine
     volumes:
@@ -40,6 +46,12 @@ services:
       # comment), so interpolating it here would authenticate with the wrong
       # password the moment a real install generates a non-default value.
       DATABASE_URL: postgresql+psycopg://postgres:password@postgres:5432/appliance
+      # Same host-vs-container split as DATABASE_URL above: install.py writes a
+      # host-reachable QDRANT_URL (http://localhost:6333, via qdrant's loopback
+      # port) into the shared .env for its own host-side healthcheck/migration
+      # steps; this container-internal hostname override takes precedence for
+      # everything that actually runs inside app/worker.
+      QDRANT_URL: http://qdrant:6333
       # `uv run` re-verifies/reconciles .venv against uv.lock on EVERY startup, not
       # just once at build time -- observed for real: every `docker compose
       # restart` re-triggers "Uninstalled N package(s)" / "Installed N package(s)"
@@ -63,6 +75,7 @@ services:
     depends_on:
       - redis
       - postgres
+      - qdrant
     volumes:
       - ./data:/app/data
       - hf_models:/models/hf
@@ -74,6 +87,12 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:password@postgres:5432/appliance
+      # Same host-vs-container split as DATABASE_URL above: install.py writes a
+      # host-reachable QDRANT_URL (http://localhost:6333, via qdrant's loopback
+      # port) into the shared .env for its own host-side healthcheck/migration
+      # steps; this container-internal hostname override takes precedence for
+      # everything that actually runs inside app/worker.
+      QDRANT_URL: http://qdrant:6333
       # See worker's UV_NO_SYNC comment above -- same reconciliation-on-every-start
       # behavior was observed for `app` too.
       UV_NO_SYNC: "1"
@@ -92,6 +111,7 @@ services:
     depends_on:
       - redis
       - postgres
+      - qdrant
     volumes:
       - ./data:/app/data
       - hf_models:/models/hf
