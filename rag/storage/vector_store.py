@@ -22,7 +22,10 @@ class QdrantVectorStore(VectorStore):
     open per process."""
 
     def __init__(self) -> None:
-        self.client = QdrantClient(path=settings.qdrant_path)
+        if settings.qdrant_url:
+            self.client = QdrantClient(url=settings.qdrant_url)
+        else:
+            self.client = QdrantClient(path=settings.qdrant_path)
         self.collection = settings.qdrant_collection
 
     def ensure_collection(self, dense_dim: int) -> None:

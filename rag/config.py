@@ -26,6 +26,13 @@ class Settings(BaseSettings):
 
     qdrant_path: str = "./data/qdrant"
     qdrant_collection: str = "documents"
+    # Server mode — empty = embedded (QdrantClient(path=...), today's only
+    # behavior); set (e.g. "http://qdrant:6333" inside containers, or
+    # "http://localhost:6333" on the host) = QdrantClient(url=...). Written
+    # into .env by install.py for every fresh install (Phase 8.10a);
+    # deliberately empty by default so tests/eval scripts/CI without a
+    # populated .env keep using embedded mode unchanged.
+    qdrant_url: str = ""
     sqlite_path: str = "./data/documents.db"
     upload_dir: str = "./data/uploads"
     max_upload_bytes: int = 100 * 1024 * 1024  # 100 MB
