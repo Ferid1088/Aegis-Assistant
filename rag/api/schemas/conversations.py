@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
 
 class ConversationResponse(BaseModel):
@@ -29,14 +30,47 @@ class MessageRequest(BaseModel):
     doc_filter: dict | None = None
 
 
+class CitationResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    chunk_id: str
+    document_id: str | None
+    document_title: str
+    version_no: int
+    page: int
+    region: tuple[int, int, int, int] | None = None
+
+
 class MessageResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     turn_index: int
     answer: str
-    citations: list
+    citations: list[CitationResponse]
+    verdict: str
+    assumptions: list[str]
+    clarification_question: str | None
+    unanswerable_reason: str | None
 
 
 class TurnResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
     turn_index: int
     question: str
     answer: str
-    citations: list
+    citations: list[CitationResponse]
+    verdict: str
+    assumptions: list[str]
+    clarification_question: str | None
+    unanswerable_reason: str | None
+
+
+class ConversationSummaryResponse(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    id: str
+    title: str
+    updated_at: str
+    message_count: int
+    locked: bool

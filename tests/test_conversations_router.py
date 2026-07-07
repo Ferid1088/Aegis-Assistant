@@ -181,7 +181,7 @@ def test_post_message_returns_answer_and_persists_turn(mock_build_graph, client,
 
     mock_graph = mock_build_graph.return_value
     mock_graph.invoke.return_value = {
-        "answer": "42", "citations": [{"page_numbers": [1]}],
+        "answer": "42", "citations": [{"chunk_id": "c0", "page_numbers": [1]}],
         "standalone_question": "What is the answer?", "turn_history": [],
     }
 
@@ -190,7 +190,7 @@ def test_post_message_returns_answer_and_persists_turn(mock_build_graph, client,
     )
     assert resp.status_code == 200
     assert resp.json()["answer"] == "42"
-    assert resp.json()["turn_index"] == 1
+    assert resp.json()["turnIndex"] == 1
 
     listing = client.get(f"/api/v1/conversations/{conv_id}/messages", headers=headers)
     assert listing.status_code == 200
@@ -312,3 +312,124 @@ def test_second_message_uses_persisted_history(mock_build_graph, client, db_sess
     invoked_state = mock_graph.invoke.call_args.args[0]
     assert len(invoked_state["turn_history"]) == 1
     assert invoked_state["turn_history"][0]["user_question"] == "q1"
+
+
+@patch("rag.api.routers.conversations.check_and_increment_inflight_generation", return_value=True)
+@patch("rag.api.routers.conversations.decrement_inflight_generation")
+@patch("rag.api.routers.conversations.build_query_graph")
+def test_post_message_surfaces_verdict_and_enriched_citations(
+    mock_build_graph, mock_decrement, mock_check, client, db_session, tmp_path, monkeypatch,
+):
+    from rag.config import settings
+    monkeypatch.setattr(settings, "sqlite_path", str(tmp_path / "documents.db"))
+    from rag.storage.document_store import SQLiteDocumentStore
+    from rag.domain.document_lifecycle import LogicalDocument
+
+    store = SQLiteDocumentStore()
+    store.create_logical_document(LogicalDocument(logical_doc_id="doc-1", source_identity="/mnt/docs/report.pdf"))
+    store.create_version("doc-1", content_hash="hash1", filename="report.pdf", num_pages=10)
+
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+
+    mock_graph = mock_build_graph.return_value
+    mock_graph.invoke.return_value = {
+        "answer": "42", "standalone_question": "What is the answer?", "turn_history": [],
+        "answerability_verdict": "assumption",
+        "assumptions": ["Assuming the standard case."],
+        "clarification_question": None,
+        "unanswerable_reason": None,
+        "citations": [{"chunk_id": "c1", "page_numbers": [7], "section": [], "bboxes": [],
+                       "logical_doc_id": "doc-1"}],
+    }
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/messages", json={"question": "What is the answer?"}, headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["verdict"] == "assumption"
+    assert body["assumptions"] == ["Assuming the standard case."]
+    assert body["clarificationQuestion"] is None
+    assert body["unanswerableReason"] is None
+    citation = body["citations"][0]
+    assert citation["documentId"] == "doc-1"
+    assert citation["documentTitle"] == "report"
+    assert citation["versionNo"] == 1
+    assert citation["page"] == 7
+
+
+@patch("rag.api.routers.conversations.check_and_increment_inflight_generation", return_value=True)
+@patch("rag.api.routers.conversations.decrement_inflight_generation")
+@patch("rag.api.routers.conversations.build_query_graph")
+def test_post_message_citation_for_unresolvable_document_degrades_gracefully(
+    mock_build_graph, mock_decrement, mock_check, client, db_session, tmp_path, monkeypatch,
+):
+    from rag.config import settings
+    monkeypatch.setattr(settings, "sqlite_path", str(tmp_path / "documents.db"))
+
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+
+    mock_graph = mock_build_graph.return_value
+    mock_graph.invoke.return_value = {
+        "answer": "42", "standalone_question": "q", "turn_history": [],
+        "citations": [{"chunk_id": "c1", "page_numbers": [1], "section": [], "bboxes": [],
+                       "logical_doc_id": "does-not-exist"}],
+    }
+
+    resp = client.post(f"/api/v1/conversations/{conv_id}/messages", json={"question": "q"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    citation = resp.json()["citations"][0]
+    assert citation["documentTitle"] == "(unknown document)"
+    assert citation["versionNo"] == 0
+
+
+def test_list_conversations_excludes_soft_deleted_and_purged(client, db_session):
+    import uuid as uuid_module
+
+    from rag.domain.conversation import ConversationState
+    from rag.storage.sql.models import Conversation
+
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    active_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+    deleted_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+
+    conv = db_session.get(Conversation, uuid_module.UUID(deleted_id))
+    conv.state = ConversationState.SOFT_DELETED.value
+    db_session.commit()
+
+    resp = client.get("/api/v1/conversations", headers=headers)
+    assert resp.status_code == 200, resp.text
+    ids = [c["id"] for c in resp.json()]
+    assert active_id in ids
+    assert deleted_id not in ids
+
+
+def test_list_conversations_computes_title_updated_at_message_count_locked(client, db_session):
+    import uuid as uuid_module
+
+    from rag.domain.conversation import ConversationState
+    from rag.storage.sql.models import Conversation
+
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    empty_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+    resp = client.get("/api/v1/conversations", headers=headers)
+    empty_summary = next(c for c in resp.json() if c["id"] == empty_id)
+    assert empty_summary["title"] == "New conversation"
+    assert empty_summary["messageCount"] == 0
+    assert empty_summary["locked"] is False
+
+    locked_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+    conv = db_session.get(Conversation, uuid_module.UUID(locked_id))
+    conv.state = ConversationState.LOCKED.value
+    db_session.commit()
+    resp2 = client.get("/api/v1/conversations", headers=headers)
+    locked_summary = next(c for c in resp2.json() if c["id"] == locked_id)
+    assert locked_summary["locked"] is True

@@ -1,12 +1,14 @@
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user, require_permission
 from rag.api.schemas.conversations import (
-    ConversationResponse, ErasureResponse, LegalHoldRequest, MessageRequest, MessageResponse,
-    TransitionRequest, TurnResponse,
+    ConversationResponse, ConversationSummaryResponse, ErasureResponse, LegalHoldRequest,
+    MessageRequest, MessageResponse, TransitionRequest, TurnResponse,
 )
 from rag.config import settings
 from rag.crosscutting.security.audit_events import record_admin_change
@@ -17,8 +19,9 @@ from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import conversation_service, conversation_turn_service
 from rag.domain.conversation import ConversationState
 from rag.graphs.query import build_query_graph
+from rag.storage.document_store import SQLiteDocumentStore
 from rag.storage.sql.base import get_db
-from rag.storage.sql.models import Conversation
+from rag.storage.sql.models import Conversation, ConversationTurn
 
 router = APIRouter()
 
@@ -33,6 +36,53 @@ def _to_response(conv: Conversation) -> ConversationResponse:
     )
 
 
+def _enrich_citations(raw_citations: list[dict]) -> list[dict]:
+    store = SQLiteDocumentStore()
+    enriched = []
+    for c in raw_citations:
+        logical_doc_id = c.get("logical_doc_id")
+        document_title = "(unknown document)"
+        version_no = 0
+        if logical_doc_id:
+            versions = store.get_versions(logical_doc_id)
+            active = next((v for v in versions if v.is_active), None)
+            if active:
+                document_title = Path(active.filename).stem
+                version_no = active.version_no
+        page_numbers = c.get("page_numbers") or []
+        bboxes = c.get("bboxes") or []
+        region = None
+        if bboxes and isinstance(bboxes[0], (list, tuple)) and len(bboxes[0]) == 4:
+            region = tuple(bboxes[0])
+        enriched.append({
+            "chunk_id": c.get("chunk_id"),
+            "document_id": logical_doc_id,
+            "document_title": document_title,
+            "version_no": version_no,
+            "page": page_numbers[0] if page_numbers else 0,
+            "region": region,
+        })
+    return enriched
+
+
+def _summarize(db: Session, conv: Conversation) -> ConversationSummaryResponse:
+    first_question = db.execute(
+        select(ConversationTurn.question)
+        .where(ConversationTurn.conversation_id == conv.id)
+        .order_by(ConversationTurn.turn_index.asc())
+        .limit(1)
+    ).scalar_one_or_none()
+    message_count = db.execute(
+        select(func.count()).select_from(ConversationTurn)
+        .where(ConversationTurn.conversation_id == conv.id)
+    ).scalar_one()
+    title = first_question[:60] if first_question else "New conversation"
+    return ConversationSummaryResponse(
+        id=str(conv.id), title=title, updated_at=conv.updated_at.isoformat(),
+        message_count=message_count, locked=conv.state != ConversationState.ACTIVE.value,
+    )
+
+
 @router.post("", response_model=ConversationResponse, status_code=201)
 def create_conversation(
     current: AuthenticatedUser = Depends(get_current_user),
@@ -42,13 +92,17 @@ def create_conversation(
     return _to_response(conv)
 
 
-@router.get("", response_model=list[ConversationResponse])
+@router.get("", response_model=list[ConversationSummaryResponse])
 def list_conversations(
     current: AuthenticatedUser = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> list[ConversationResponse]:
+) -> list[ConversationSummaryResponse]:
     convs = conversation_service.list_owned_conversations(db, current.user.id)
-    return [_to_response(c) for c in convs]
+    visible = [
+        c for c in convs
+        if c.state not in (ConversationState.SOFT_DELETED.value, ConversationState.PURGED.value)
+    ]
+    return [_summarize(db, c) for c in visible]
 
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)
@@ -163,9 +217,19 @@ def post_message(
     turn = conversation_turn_service.append_turn(
         db, conversation_id, question=body.question,
         standalone_question=result.get("standalone_question", body.question),
-        answer=result.get("answer", ""), citations=result.get("citations", []),
+        answer=result.get("answer", ""),
+        citations=_enrich_citations(result.get("citations", [])),
+        verdict=result.get("answerability_verdict", "answerable"),
+        assumptions=result.get("assumptions", []),
+        clarification_question=result.get("clarification_question"),
+        unanswerable_reason=result.get("unanswerable_reason"),
     )
-    return MessageResponse(turn_index=turn.turn_index, answer=turn.answer, citations=turn.citations)
+    return MessageResponse(
+        turn_index=turn.turn_index, answer=turn.answer, citations=turn.citations,
+        verdict=turn.verdict, assumptions=turn.assumptions,
+        clarification_question=turn.clarification_question,
+        unanswerable_reason=turn.unanswerable_reason,
+    )
 
 
 @router.get("/{conversation_id}/messages", response_model=list[TurnResponse])
@@ -181,6 +245,10 @@ def list_messages(
 
     turns = conversation_turn_service.list_recent_turns(db, conversation_id, limit=1000)
     return [
-        TurnResponse(turn_index=t.turn_index, question=t.question, answer=t.answer, citations=t.citations)
+        TurnResponse(
+            turn_index=t.turn_index, question=t.question, answer=t.answer, citations=t.citations,
+            verdict=t.verdict, assumptions=t.assumptions,
+            clarification_question=t.clarification_question, unanswerable_reason=t.unanswerable_reason,
+        )
         for t in turns
     ]
