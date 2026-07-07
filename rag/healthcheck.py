@@ -1,5 +1,6 @@
 from sqlalchemy import text
 
+from rag.capabilities.cache import get_redis
 from rag.config import settings
 from rag.llm.provider import get_llm, get_embedder, get_device
 from rag.storage.sql.base import SessionLocal
@@ -11,6 +12,17 @@ def check_postgres() -> None:
         db.execute(text("SELECT 1"))
     finally:
         db.close()
+
+
+def check_redis() -> None:
+    r = get_redis()
+    if r is None:
+        raise RuntimeError("Redis unavailable")
+    # get_redis() caches its client forever once a connection has ever
+    # succeeded (rag/capabilities/cache.py) -- it does NOT re-check liveness
+    # on later calls. Without this .ping(), a Redis outage that happens
+    # after the first successful connection would never be detected here.
+    r.ping()
 
 
 def main():
@@ -38,6 +50,9 @@ def main():
 
     check_postgres()
     print("✅ Postgres OK")
+
+    check_redis()
+    print("✅ Redis OK")
 
     print("\n🎉 Foundation stands.")
 

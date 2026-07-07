@@ -14,7 +14,7 @@ from rag.api.errors import http_exception_handler, unhandled_exception_handler, 
 from rag.api.routers import admin_audit, admin_rbac, admin_users, auth as auth_router, conversations, documents
 from rag.config import settings
 from rag.crosscutting.security.rate_limit import limiter
-from rag.healthcheck import check_postgres
+from rag.healthcheck import check_postgres, check_redis
 from rag.observability.logging_config import configure_logging
 
 
@@ -51,6 +51,7 @@ def create_app() -> FastAPI:
     async def readyz():
         try:
             check_postgres()
+            check_redis()
         except Exception as exc:
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

@@ -58,7 +58,11 @@ class Settings(BaseSettings):
     # ACL seam — master switch; stays False until 05.1 enforces it.
     acl_enforce: bool = False
 
-    # Redis cache — off by default; set REDIS_URL=redis://localhost:6379 to enable
+    # Mandatory for any real (install.py-run) deployment — enforced via
+    # check_redis() in /readyz and the install-time healthcheck (Phase
+    # 8.10b). Stays "" here only so bare Settings() (unit tests, eval
+    # scripts, CI without a populated .env) keeps working unchanged; every
+    # real install already gets a concrete REDIS_URL written to .env.
     redis_url: str = ""
     cache_ttl_transform: int = 3600    # 1 h
     cache_ttl_embed: int = 86400       # 24 h
