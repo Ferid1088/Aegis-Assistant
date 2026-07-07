@@ -58,8 +58,11 @@ separately defined. Legal confirmation required.)*
 **Verschlüsselung (Encryption):**
 - Envelope-Encryption-Keystore für Geheimnisse und Schlüssel im Ruhezustand
   (`rag/crosscutting/security/keystore.py`).
-- Pro-Konversation-Schlüssel für krypto-basierte Löschung (Crypto-Shred,
-  siehe `Loeschkonzept.md`).
+- Pro-Konversation-Schlüssel vorhanden als Grundlage für ein zukünftiges
+  Crypto-Shred-Verfahren — **verschlüsselt aktuell jedoch keinen
+  Konversationsinhalt** (dieser wird als Klartext gespeichert); die
+  tatsächliche Löschung erfolgt heute über einen harten Datenbank-Löschvorgang.
+  Details und die daraus resultierende Backup-Lücke siehe `Loeschkonzept.md`.
 
 **Pseudonymisierung:**
 Siehe Abschnitt "Geplant, nicht implementiert" unten — es existiert derzeit
