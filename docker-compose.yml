@@ -68,7 +68,7 @@ services:
     # Required by vLLM's own documented Docker usage: PyTorch uses shared
     # memory for tensor-parallel inference under the hood.
     ipc: host
-    command: ["--model", "${LLM_MODEL:-qwen2.5:7b}"]
+    command: ["--model", "${LLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}"]
     ports: ["127.0.0.1:8000:8000"]
     deploy:
       resources:

@@ -98,6 +98,15 @@ def run_install() -> None:
     # healthcheck_main()'s get_llm() call below would silently keep trying
     # Ollama even though this install generated a vLLM-targeted LLM_BACKEND.
     settings.llm_backend = read_env_value(env_path, "LLM_BACKEND") or settings.llm_backend
+    # Same class of bug, same fix, paired with llm_backend directly above:
+    # settings.llm_model was constructed at import time with the stale
+    # "qwen2.5:7b" (Ollama-tag) default -- on a fresh GPU install, LLM_MODEL
+    # doesn't exist in .env until write_missing_env_vars() writes it a few
+    # lines above. Without this, healthcheck_main()'s get_llm() call below
+    # would build ChatOpenAI(model="qwen2.5:7b", base_url=vllm...) even though
+    # vLLM was started with --model Qwen/Qwen2.5-7B-Instruct, so the request
+    # would be rejected as an unknown model.
+    settings.llm_model = read_env_value(env_path, "LLM_MODEL") or settings.llm_model
     # Same class of bug as neo4j_password/qdrant_url above: settings.redis_url
     # was constructed at import time with the "" default -- on a fresh
     # install, REDIS_URL doesn't exist in .env until write_missing_env_vars()

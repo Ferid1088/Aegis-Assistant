@@ -110,12 +110,16 @@ def test_run_install_syncs_in_process_neo4j_password_and_qdrant_url_from_env(
     # read that resyncs settings.redis_url (fixing a real bug: install.py's
     # host-side healthcheck_main() couldn't resolve the "redis" hostname, since
     # settings.redis_url started at the "" default and was never resynced), and
-    # (Phase 8.10c) an LLM_BACKEND read that resyncs settings.llm_backend.
+    # (Phase 8.10c) an LLM_BACKEND read that resyncs settings.llm_backend, and
+    # (Phase 8.10c re-review) an LLM_MODEL read that resyncs settings.llm_model
+    # -- mock_check_gpu is unset here, so the default MagicMock() return value
+    # is truthy and the has_gpu branch (which includes the LLM_MODEL read) runs.
     # Save/restore all of them so this test doesn't leak a bogus value into
     # later tests' shared `settings` singleton.
     original_database_url = settings.database_url
     original_redis_url = settings.redis_url
     original_llm_backend = settings.llm_backend
+    original_llm_model = settings.llm_model
     try:
         mock_session_local.return_value = MagicMock()
         mock_ensure_admin.return_value = None
@@ -124,31 +128,35 @@ def test_run_install_syncs_in_process_neo4j_password_and_qdrant_url_from_env(
         import install
         install.run_install()
 
-        # NEO4J_PASSWORD, QDRANT_URL, POSTGRES_PASSWORD, REDIS_URL, and
-        # LLM_BACKEND must all be re-read from the .env file install.py just
-        # wrote, and used to update the already-constructed `settings`
-        # singleton -- otherwise run_store_migrate.main() and
+        # NEO4J_PASSWORD, QDRANT_URL, POSTGRES_PASSWORD, REDIS_URL,
+        # LLM_BACKEND, and LLM_MODEL must all be re-read from the .env file
+        # install.py just wrote, and used to update the already-constructed
+        # `settings` singleton -- otherwise run_store_migrate.main() and
         # healthcheck_main() (called later in this same process) would
         # silently keep using settings' stale import-time defaults
         # (embedded-mode Qdrant, in the QDRANT_URL case; no Redis at all, in
-        # the REDIS_URL case; the "ollama" default, in the LLM_BACKEND case)
-        # for this entire run.
-        assert mock_read_env_value.call_count == 5
+        # the REDIS_URL case; the "ollama" default, in the LLM_BACKEND case;
+        # the Ollama-tag "qwen2.5:7b" default, in the LLM_MODEL case) for this
+        # entire run.
+        assert mock_read_env_value.call_count == 6
         assert call(Path(".env"), "NEO4J_PASSWORD") in mock_read_env_value.call_args_list
         assert call(Path(".env"), "QDRANT_URL") in mock_read_env_value.call_args_list
         assert call(Path(".env"), "REDIS_URL") in mock_read_env_value.call_args_list
         assert call(Path(".env"), "POSTGRES_PASSWORD") in mock_read_env_value.call_args_list
         assert call(Path(".env"), "LLM_BACKEND") in mock_read_env_value.call_args_list
+        assert call(Path(".env"), "LLM_MODEL") in mock_read_env_value.call_args_list
         assert settings.neo4j_password == "freshly-generated-secret"
         assert settings.qdrant_url == "freshly-generated-secret"
         assert settings.redis_url == "freshly-generated-secret"
         assert settings.llm_backend == "freshly-generated-secret"
+        assert settings.llm_model == "freshly-generated-secret"
     finally:
         settings.neo4j_password = original_neo4j_password
         settings.qdrant_url = original_qdrant_url
         settings.database_url = original_database_url
         settings.redis_url = original_redis_url
         settings.llm_backend = original_llm_backend
+        settings.llm_model = original_llm_model
 
 
 @patch("install.check_gpu")
@@ -251,6 +259,56 @@ def test_run_install_syncs_in_process_llm_backend_from_env(
 
 
 @patch("install.reset_engine")
+@patch("install.check_gpu")
+@patch("install.read_env_value")
+@patch("install.wait_for_postgres_ready")
+@patch("install.healthcheck_main")
+@patch("install.ensure_first_admin")
+@patch("install.SessionLocal")
+@patch("install.run_store_migrate")
+@patch("install.subprocess.run")
+@patch("install.write_missing_env_vars")
+@patch("install.check_ram")
+@patch("install.check_docker")
+def test_run_install_syncs_in_process_llm_model_from_env(
+    mock_check_docker, mock_check_ram, mock_write_env,
+    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
+    mock_healthcheck, mock_wait_for_postgres, mock_read_env_value, mock_check_gpu, mock_reset_engine,
+):
+    from rag.config import settings
+    original_llm_model = settings.llm_model
+    original_llm_backend = settings.llm_backend
+    original_neo4j_password = settings.neo4j_password
+    original_qdrant_url = settings.qdrant_url
+    original_database_url = settings.database_url
+    original_redis_url = settings.redis_url
+    try:
+        mock_check_gpu.return_value = True
+        mock_session_local.return_value = MagicMock()
+        mock_ensure_admin.return_value = None
+        mock_read_env_value.return_value = "Qwen/Qwen2.5-7B-Instruct"
+
+        import install
+        install.run_install()
+
+        # LLM_MODEL must be re-read from the .env file install.py just wrote
+        # and used to update the already-constructed `settings` singleton --
+        # otherwise healthcheck_main()'s get_llm() call (later in this same
+        # process) would silently keep using settings' stale import-time
+        # default ("qwen2.5:7b", Ollama-tag format) even on a fresh GPU
+        # install that generated LLM_MODEL=Qwen/Qwen2.5-7B-Instruct, causing
+        # vLLM to reject the request as an unknown model.
+        assert settings.llm_model == "Qwen/Qwen2.5-7B-Instruct"
+    finally:
+        settings.llm_model = original_llm_model
+        settings.llm_backend = original_llm_backend
+        settings.neo4j_password = original_neo4j_password
+        settings.qdrant_url = original_qdrant_url
+        settings.database_url = original_database_url
+        settings.redis_url = original_redis_url
+
+
+@patch("install.reset_engine")
 @patch("install.read_env_value")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
@@ -276,11 +334,14 @@ def test_run_install_syncs_in_process_database_url_from_generated_postgres_passw
     # too, or this test would leak "freshly-generated-postgres-secret" into
     # later tests' shared `settings` singleton (e.g. a subsequent real
     # Qdrant-hitting test would try to connect to a host literally named
-    # "freshly-generated-postgres-secret").
+    # "freshly-generated-postgres-secret"). mock_check_gpu is unset here, so
+    # the default MagicMock() return value is truthy and the has_gpu branch
+    # (which includes the LLM_MODEL read/resync) also runs.
     original_neo4j_password = settings.neo4j_password
     original_qdrant_url = settings.qdrant_url
     original_redis_url = settings.redis_url
     original_llm_backend = settings.llm_backend
+    original_llm_model = settings.llm_model
     try:
         mock_session_local.return_value = MagicMock()
         mock_ensure_admin.return_value = None
@@ -305,6 +366,7 @@ def test_run_install_syncs_in_process_database_url_from_generated_postgres_passw
         settings.qdrant_url = original_qdrant_url
         settings.redis_url = original_redis_url
         settings.llm_backend = original_llm_backend
+        settings.llm_model = original_llm_model
 
 
 @patch("install.ensure_glitchtip_database")
