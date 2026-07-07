@@ -30,6 +30,12 @@ jobs:
           image-ref: rag-appliance-app:release
           severity: CRITICAL
           exit-code: "1"
+          # Ignore the 2 already-investigated, unfixed perl-base CVEs (see
+          # .github/release.trivyignore) so releases aren't permanently
+          # blocked by an accepted-risk finding with no upstream fix. This
+          # ignore file is scoped to this release gate only -- ci.yml's
+          # trivy-scan job does not reference it and is unaffected.
+          trivyignores: .github/release.trivyignore
 
       - name: Extract version and changelog from the tag
         id: tag

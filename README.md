@@ -8,6 +8,13 @@ triggers `.github/workflows/release.yml`. That workflow builds the app image,
 runs the same Trivy CRITICAL-severity gate used in CI, builds an unsigned
 update bundle, signs it, and attaches the signed bundle to a GitHub Release.
 
+The release Trivy gate additionally ignores 2 specific CVEs
+(`.github/release.trivyignore`, passed via the `trivyignores` input) --
+CRITICAL findings in Debian's `perl-base`, transitive from the
+`python:3.14-slim` base image, with no fix available from Debian. CI's own
+`trivy-scan` job in `ci.yml` does not reference this ignore file and keeps
+reporting/failing on them as an intentional, accepted-risk indicator.
+
 Before pushing the first release tag, a repo maintainer must populate the
 `RELEASE_SIGNING_PRIVATE_KEY` GitHub Actions secret (Settings -> Secrets and
 variables -> Actions) out-of-band -- the workflow only ever *reads* this

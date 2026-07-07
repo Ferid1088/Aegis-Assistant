@@ -1,0 +1,24 @@
+# Trivy ignore file for the release Trivy gate ONLY (.github/workflows/release.yml).
+#
+# NOT auto-loaded by Trivy's default discovery (that only picks up a file
+# literally named `.trivyignore` in the CWD) and NOT referenced by
+# .github/workflows/ci.yml's trivy-scan job -- CI's own Trivy checks must
+# keep showing and failing on these as an intentional, accepted-risk status
+# indicator. Only release.yml's Trivy step passes this file via the
+# `trivyignores` input.
+#
+# Both entries below are transitive CRITICAL CVEs in Debian's perl-base
+# package, pulled in by the python:3.14-slim base image. Investigated during
+# Phase 8.8 Task 5/Task 6 and the final whole-branch review: as of
+# 2026-07-07, Debian has not shipped a fix for either, and this application
+# never invokes perl, so neither is exploitable via anything this app does.
+# Excluding them from the release gate only (not from CI) lets releases ship
+# despite this unfixed, accepted-risk pair.
+
+# perl-base: no fix available from Debian as of 2026-07-07 (transitive via
+# python:3.14-slim); not exploitable -- this app never invokes perl.
+CVE-2026-42496
+
+# perl-base: no fix available from Debian as of 2026-07-07 (transitive via
+# python:3.14-slim); not exploitable -- this app never invokes perl.
+CVE-2026-8376
