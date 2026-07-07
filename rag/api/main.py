@@ -6,11 +6,14 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from rag.api.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
 from rag.api.routers import admin_audit, admin_rbac, admin_users, auth as auth_router, conversations, documents
 from rag.config import settings
+from rag.crosscutting.security.rate_limit import limiter
 from rag.healthcheck import check_postgres
 from rag.observability.logging_config import configure_logging
 
@@ -22,6 +25,9 @@ def create_app() -> FastAPI:
         sentry_sdk.init(dsn=settings.glitchtip_dsn, traces_sample_rate=0.0)
 
     app = FastAPI(title="RAG Appliance API", version="1.0", openapi_url="/api/v1/openapi.json", docs_url="/api/v1/docs")
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     @app.middleware("http")
     async def add_request_id(request: Request, call_next):

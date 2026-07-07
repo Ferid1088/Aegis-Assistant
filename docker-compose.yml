@@ -1,7 +1,6 @@
 services:
   neo4j:
     image: neo4j:5-community
-    ports: ["7474:7474", "7687:7687"]
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_server_memory_heap_max__size: 512M
@@ -14,13 +13,11 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: appliance
-    ports: ["5432:5432"]
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
     volumes:
       - ./data/redis:/data
 
@@ -42,6 +39,26 @@ services:
       # comment), so interpolating it here would authenticate with the wrong
       # password the moment a real install generates a non-default value.
       DATABASE_URL: postgresql+psycopg://postgres:password@postgres:5432/appliance
+      # `uv run` re-verifies/reconciles .venv against uv.lock on EVERY startup, not
+      # just once at build time -- observed for real: every `docker compose
+      # restart` re-triggers "Uninstalled N package(s)" / "Installed N package(s)"
+      # writes into .venv. Under read_only: true there is no writable .venv to
+      # reconcile into, so disable the sync step entirely -- deps are already fully
+      # installed by `uv sync --frozen --no-dev` at image build time, so there is
+      # nothing meaningful to reconcile at runtime anyway.
+      UV_NO_SYNC: "1"
+      # Even with UV_NO_SYNC=1 skipping the reconciliation itself, `uv run` still
+      # tries to initialize its cache dir at $HOME/.cache/uv on every invocation and
+      # crashes under read_only: true -- observed for real:
+      #   error: Failed to initialize cache at `/home/appuser/.cache/uv`
+      #     Caused by: failed to create directory `/home/appuser/.cache/uv`:
+      #     Read-only file system (os error 30)
+      # Point it at the /tmp tmpfs below instead of adding a separate tmpfs mount.
+      UV_CACHE_DIR: /tmp/uv-cache
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs:
+      - /tmp
     depends_on:
       - redis
       - postgres
@@ -56,13 +73,36 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:password@postgres:5432/appliance
+      # See worker's UV_NO_SYNC comment above -- same reconciliation-on-every-start
+      # behavior was observed for `app` too.
+      UV_NO_SYNC: "1"
+      # Even with UV_NO_SYNC=1 skipping the reconciliation itself, `uv run` still
+      # tries to initialize its cache dir at $HOME/.cache/uv on every invocation and
+      # crashes under read_only: true -- observed for real:
+      #   error: Failed to initialize cache at `/home/appuser/.cache/uv`
+      #     Caused by: failed to create directory `/home/appuser/.cache/uv`:
+      #     Read-only file system (os error 30)
+      # Point it at the /tmp tmpfs below instead of adding a separate tmpfs mount.
+      UV_CACHE_DIR: /tmp/uv-cache
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs:
+      - /tmp
     depends_on:
       - redis
       - postgres
-    ports: ["8000:8000"]
     volumes:
       - ./data:/app/data
       - hf_models:/models/hf
+
+  nginx:
+    image: nginx:latest
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
 
   node_exporter:
     image: prom/node-exporter:latest
@@ -75,14 +115,14 @@ services:
       - "--path.procfs=/host/proc"
       - "--path.sysfs=/host/sys"
       - "--path.rootfs=/rootfs"
-    ports: ["9100:9100"]
+    ports: ["127.0.0.1:9100:9100"]
 
   prometheus:
     image: prom/prometheus:latest
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    ports: ["9090:9090"]
+    ports: ["127.0.0.1:9090:9090"]
     depends_on:
       - app
       - worker
@@ -96,7 +136,7 @@ services:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
-    ports: ["3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     depends_on:
       - prometheus
 
@@ -118,7 +158,7 @@ services:
       REDIS_URL: redis://redis:6379/1
       SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
       PORT: 8080
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8080:8080"]
     depends_on:
       - glitchtip-migrate
 

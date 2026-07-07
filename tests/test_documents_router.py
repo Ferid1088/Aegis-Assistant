@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from rag.api.routers import documents
+from rag.crosscutting.security.rate_limit import limiter
 from rag.crosscutting.security.tokens import create_access_token
 from rag.storage.sql.base import get_db
 from rag.storage.sql.models import Role, RolePermission, User, UserRole, UserSession
@@ -43,6 +44,7 @@ def client(db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(config.settings, "upload_dir", str(tmp_path / "uploads"))
 
     app = FastAPI()
+    app.state.limiter = limiter
     app.dependency_overrides[get_db] = lambda: db_session
     app.include_router(documents.router, prefix="/api/v1/documents")
     return TestClient(app, raise_server_exceptions=False)
@@ -157,3 +159,45 @@ def test_list_documents_empty(client, db_session):
     resp = client.get("/api/v1/documents", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+@patch("rag.api.routers.documents.run_ingestion")
+def test_upload_returns_429_after_the_rate_limit_is_exceeded(mock_task, client, db_session):
+    _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
+
+    for _ in range(5):
+        resp = client.post(
+            "/api/v1/documents",
+            files={"file": ("a.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 202
+
+    resp = client.post(
+        "/api/v1/documents",
+        files={"file": ("a.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 429
+
+
+@patch("rag.api.routers.documents.run_ingestion")
+def test_upload_still_succeeds_when_the_rate_limit_backend_is_unreachable(mock_task, client, db_session):
+    # swallow_errors=True (rate_limit.py) means a Redis connection failure logs a
+    # warning and lets the request through, rather than crashing the whole upload
+    # with an unhandled 500 -- this proves that fail-open behavior end-to-end
+    # through the real route, not just by inspecting the Limiter's configuration.
+    _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
+
+    with patch.object(limiter.limiter, "storage") as mock_storage:
+        # patching Limiter._storage would silently no-op: the actual check path
+        # reads Limiter._limiter.storage (aliased via the public `.limiter`
+        # property), captured once at construction time, not `Limiter._storage`.
+        mock_storage.incr.side_effect = ConnectionError("redis unreachable")
+        resp = client.post(
+            "/api/v1/documents",
+            files={"file": ("a.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 202

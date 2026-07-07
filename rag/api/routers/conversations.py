@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user, require_permission
@@ -9,6 +9,7 @@ from rag.api.schemas.conversations import (
     TransitionRequest, TurnResponse,
 )
 from rag.crosscutting.security.audit_events import record_admin_change
+from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import conversation_service, conversation_turn_service
 from rag.domain.conversation import ConversationState
 from rag.graphs.query import build_query_graph
@@ -120,7 +121,9 @@ def legal_hold(
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageResponse)
+@limiter.limit("10/minute")
 def post_message(
+    request: Request,
     conversation_id: uuid.UUID,
     body: MessageRequest,
     current: AuthenticatedUser = Depends(get_current_user),
