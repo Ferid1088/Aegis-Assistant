@@ -9,6 +9,7 @@ certs/
 docs/*
 !docs/TV_L.pdf
 !docs/TV_L_tables.json
+!docs/compliance/
 .worktrees/
 .pytest_cache/
 .superpowers/
