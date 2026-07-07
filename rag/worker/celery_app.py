@@ -3,7 +3,7 @@ import uuid
 import sentry_sdk
 import structlog
 from celery import Celery
-from celery.signals import task_postrun, task_prerun
+from celery.signals import task_postrun, task_prerun, worker_init
 
 from rag.config import settings
 from rag.crosscutting.security.ingestion_limits import decrement_queued_ingestion
@@ -29,7 +29,9 @@ def _maybe_start_queue_depth_exporter() -> None:
         start_queue_depth_exporter()
 
 
-_maybe_start_queue_depth_exporter()
+@worker_init.connect
+def _start_queue_depth_exporter(**kwargs):
+    _maybe_start_queue_depth_exporter()
 
 
 @task_prerun.connect
