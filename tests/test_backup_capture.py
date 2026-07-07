@@ -22,13 +22,61 @@ def test_dump_postgres_runs_pg_dump_and_writes_stdout(mock_run, tmp_path):
 
 @patch("rag.backup.capture.shutil.copytree")
 @patch("rag.backup.capture.settings")
-def test_copy_qdrant_copies_configured_path(mock_settings, mock_copytree, tmp_path):
+def test_copy_qdrant_copies_configured_path_in_embedded_mode(mock_settings, mock_copytree, tmp_path):
+    # Embedded mode (qdrant_url empty): no separate server process holds
+    # data/qdrant open, so this must stay a plain copytree -- no docker compose
+    # stop/start.
     mock_settings.qdrant_path = "/fake/qdrant/path"
+    mock_settings.qdrant_url = ""
+    dest = tmp_path / "qdrant_copy"
+
+    with patch("rag.backup.capture.subprocess.run") as mock_run:
+        copy_qdrant(dest)
+        mock_run.assert_not_called()
+
+    mock_copytree.assert_called_once_with(Path("/fake/qdrant/path"), dest, dirs_exist_ok=True)
+
+
+@patch("rag.backup.capture.wait_for_qdrant_ready")
+@patch("rag.backup.capture.shutil.copytree")
+@patch("rag.backup.capture.subprocess.run")
+@patch("rag.backup.capture.settings")
+def test_copy_qdrant_stops_copies_then_restarts_in_server_mode(
+    mock_settings, mock_run, mock_copytree, mock_wait_ready, tmp_path,
+):
+    mock_settings.qdrant_path = "/fake/qdrant/path"
+    mock_settings.qdrant_url = "http://localhost:6333"
     dest = tmp_path / "qdrant_copy"
 
     copy_qdrant(dest)
 
+    assert mock_run.call_args_list == [
+        call(["docker", "compose", "stop", "qdrant"], check=True),
+        call(["docker", "compose", "start", "qdrant"], check=True),
+    ]
     mock_copytree.assert_called_once_with(Path("/fake/qdrant/path"), dest, dirs_exist_ok=True)
+    mock_wait_ready.assert_called_once()
+
+
+@patch("rag.backup.capture.wait_for_qdrant_ready")
+@patch("rag.backup.capture.shutil.copytree")
+@patch("rag.backup.capture.subprocess.run")
+@patch("rag.backup.capture.settings")
+def test_copy_qdrant_restarts_even_if_copy_fails_in_server_mode(
+    mock_settings, mock_run, mock_copytree, mock_wait_ready, tmp_path,
+):
+    mock_settings.qdrant_path = "/fake/qdrant/path"
+    mock_settings.qdrant_url = "http://localhost:6333"
+    mock_copytree.side_effect = OSError("disk full")
+    dest = tmp_path / "qdrant_copy"
+
+    try:
+        copy_qdrant(dest)
+    except OSError:
+        pass
+
+    assert call(["docker", "compose", "start", "qdrant"], check=True) in mock_run.call_args_list
+    mock_wait_ready.assert_called_once()
 
 
 @patch("rag.backup.capture.wait_for_neo4j_ready")

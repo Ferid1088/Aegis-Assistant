@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 
 from rag.bootstrap.wait_for_neo4j import wait_for_neo4j_ready
+from rag.bootstrap.wait_for_qdrant import wait_for_qdrant_ready
 from rag.config import settings
 
 
@@ -15,7 +16,24 @@ def dump_postgres(dest_path: Path) -> None:
 
 
 def copy_qdrant(dest_dir: Path) -> None:
-    shutil.copytree(Path(settings.qdrant_path), dest_dir, dirs_exist_ok=True)
+    # Server mode (settings.qdrant_url set) means a persistent, continuously-writing
+    # `qdrant` container may hold these files (segments, WAL) open -- copying them
+    # live risks a torn/corrupt snapshot. Stop/copy/restart, mirroring dump_neo4j
+    # below exactly. Embedded mode (qdrant_url empty) has no separate server
+    # process holding data/qdrant open -- nothing to stop, so keep the old plain
+    # copytree for installs still on that mode.
+    if settings.qdrant_url:
+        subprocess.run(["docker", "compose", "stop", "qdrant"], check=True)
+        try:
+            shutil.copytree(Path(settings.qdrant_path), dest_dir, dirs_exist_ok=True)
+        finally:
+            subprocess.run(["docker", "compose", "start", "qdrant"], check=True)
+            # `start` returns once the container process launches, not once Qdrant
+            # actually accepts REST requests again -- anything that touches Qdrant
+            # right after this function returns would otherwise race that boot time.
+            wait_for_qdrant_ready()
+    else:
+        shutil.copytree(Path(settings.qdrant_path), dest_dir, dirs_exist_ok=True)
 
 
 def dump_neo4j(dest_dir: Path) -> None:

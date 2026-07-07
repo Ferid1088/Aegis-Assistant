@@ -1,4 +1,5 @@
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import MagicMock, call, patch
 
 
 @patch("install.wait_for_postgres_ready")
@@ -94,13 +95,14 @@ def test_run_install_writes_redis_url(
 @patch("install.check_gpu")
 @patch("install.check_ram")
 @patch("install.check_docker")
-def test_run_install_syncs_in_process_neo4j_password_from_env(
+def test_run_install_syncs_in_process_neo4j_password_and_qdrant_url_from_env(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
     mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
     mock_healthcheck, mock_wait_for_postgres, mock_read_env_value,
 ):
     from rag.config import settings
     original_neo4j_password = settings.neo4j_password
+    original_qdrant_url = settings.qdrant_url
     try:
         mock_session_local.return_value = MagicMock()
         mock_ensure_admin.return_value = None
@@ -109,10 +111,20 @@ def test_run_install_syncs_in_process_neo4j_password_from_env(
         import install
         install.run_install()
 
-        mock_read_env_value.assert_called_once()
+        # Both NEO4J_PASSWORD and QDRANT_URL must be re-read from the .env file
+        # install.py just wrote, and used to update the already-constructed
+        # `settings` singleton -- otherwise run_store_migrate.main() and
+        # healthcheck_main() (called later in this same process) would silently
+        # keep using settings' stale import-time defaults (embedded-mode Qdrant,
+        # in the QDRANT_URL case) for this entire run.
+        assert mock_read_env_value.call_count == 2
+        assert call(Path(".env"), "NEO4J_PASSWORD") in mock_read_env_value.call_args_list
+        assert call(Path(".env"), "QDRANT_URL") in mock_read_env_value.call_args_list
         assert settings.neo4j_password == "freshly-generated-secret"
+        assert settings.qdrant_url == "freshly-generated-secret"
     finally:
         settings.neo4j_password = original_neo4j_password
+        settings.qdrant_url = original_qdrant_url
 
 
 @patch("install.ensure_glitchtip_database")

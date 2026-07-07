@@ -62,6 +62,13 @@ def run_install() -> None:
     # the Neo4j container (created fresh from this same .env, next step) uses the
     # real value.
     settings.neo4j_password = read_env_value(env_path, "NEO4J_PASSWORD") or settings.neo4j_password
+    # Same class of bug, same fix: `settings` was constructed at import time with
+    # qdrant_url=="" (the embedded-mode default) -- on a fresh install, QDRANT_URL
+    # doesn't exist in .env until write_missing_env_vars() writes it a few lines
+    # above, so without this, run_store_migrate.main() and healthcheck_main() below
+    # would silently run against embedded Qdrant (./data/qdrant via QdrantClient(path=...))
+    # instead of the real `qdrant` server container this whole sub-phase stands up.
+    settings.qdrant_url = read_env_value(env_path, "QDRANT_URL") or settings.qdrant_url
 
     print("== Starting services ==")
     # Must exist before `docker compose up` touches it: on Linux, dockerd (running
