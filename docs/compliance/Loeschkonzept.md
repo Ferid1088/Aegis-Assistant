@@ -97,11 +97,15 @@ Weiterentwicklung vorzumerken.
 | Aufbewahrungsfrist abgelaufen | **Praktisch nicht erreichbar:** kein automatischer Hintergrundjob, keine API zum Setzen von `retention_days`, und der einzige Aufrufer von `resolve_erasure()` setzt vorher `erasure_requested = True` (siehe Rangfolge oben) | *(nicht erfasst — dieser Zweig wird im produktiven Codepfad nie erreicht)* |
 
 **Bekannte Lücke:** anders als in einer früheren Entwurfsfassung dieses
-Dokuments dargestellt, protokolliert das Audit-Log heute **ausschließlich
-das Setzen/Aufheben eines Legal Hold** (siehe unten) — Löschanfragen,
-deren Ausführung und deren Ablehnung werden derzeit **nicht** in das
-manipulationssichere Audit-Log geschrieben. Dies widerspricht der
-ursprünglichen Absicht des Audit-Moduls und sollte in einer zukünftigen
+Dokuments dargestellt, protokolliert das Audit-Log **von den
+löschbezogenen Ereignissen ausschließlich das Setzen/Aufheben eines Legal
+Hold** (siehe unten) — Löschanfragen, deren Ausführung und deren Ablehnung
+werden derzeit **nicht** in das manipulationssichere Audit-Log geschrieben.
+(Das Audit-Log selbst protokolliert daneben zahlreiche andere Ereignisse
+ohne Bezug zur Löschung, z. B. Anmeldeversuche und Rollenänderungen —
+siehe `TOM.md` und `Verzeichnis_Verarbeitungstaetigkeiten_Vorlage.md`.)
+Die fehlende Löschprotokollierung widerspricht der ursprünglichen Absicht
+des Audit-Moduls und sollte in einer zukünftigen
 Erweiterung nachgezogen werden.
 
 ## Ausnahme: Legal Hold
