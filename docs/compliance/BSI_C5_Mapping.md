@@ -31,9 +31,9 @@ eine Software-Appliance kann diese nicht selbst erfüllen.
 
 | Kontrolle | Umsetzung in dieser Anwendung |
 |---|---|
-| Verschlüsselung ruhender Daten | Envelope-Encryption-Keystore (`rag/crosscutting/security/keystore.py`) |
+| Verschlüsselung von Geheimnissen, Schlüsseln und Backup-Archiven | Envelope-Encryption-Keystore (`rag/crosscutting/security/keystore.py`); Backup-Archive werden mit einem Keystore-Schlüssel verschlüsselt (`rag/backup/archive.py`). **Nicht abgedeckt:** Konversationsinhalte selbst (`question`/`answer`/`citations`) werden als Klartext in der Datenbank gespeichert, siehe `Loeschkonzept.md`. |
 | Verschlüsselung während der Übertragung | TLS-Terminierung via nginx-Reverse-Proxy (`nginx/nginx.conf`), automatische Zertifikatserzeugung bei Installation (`rag/bootstrap/tls_cert.py`) |
-| Schlüsselvernichtung als Löschmechanismus | Crypto-Shred pro Konversation, siehe `Loeschkonzept.md` |
+| Schlüsselvernichtung, vorbereitet für ein zukünftiges Crypto-Shred-Verfahren | Ein pro-Konversation-Schlüssel wird bei einer Löschanfrage vernichtet, verschlüsselt aber **aktuell keinen Konversationsinhalt** — die tatsächliche, heute wirksame Löschung erfolgt über einen harten Datenbank-Löschvorgang, nicht über diesen Schlüssel. Details siehe `Loeschkonzept.md`. |
 
 ## LOG — Protokollierung und Überwachung (Logging and Monitoring)
 
@@ -49,7 +49,22 @@ eine Software-Appliance kann diese nicht selbst erfüllen.
 |---|---|
 | Verschlüsseltes Backup | Keystore-gesicherte Archive (`rag/backup/`) |
 | Getestetes Restore-Verfahren | Tatsächlich end-to-end getestet, nicht nur angenommen (Integrationstests) |
-| Automatischer Neustart bei Container-Ausfall | Docker-Compose-Neustartrichtlinien, Healthchecks |
+| Ressourcenbegrenzung gegen Erschöpfung durch einzelne Nutzer | Pro-Nutzer-Rate-Limits auf Upload/Chat mit kontrolliertem Fail-Open bei Redis-Ausfall (`rag/crosscutting/security/rate_limit.py`), Pro-Nutzer-Obergrenze für gleichzeitige Ingestions-Aufträge (`rag/crosscutting/security/ingestion_limits.py`) |
+
+**Bekannte Lücke:** ein automatischer Container-Neustart bei Ausfall
+(Docker-Compose-Neustartrichtlinien bzw. Healthchecks) ist in
+`docker-compose.yml` derzeit **nicht konfiguriert** — kein Service trägt
+eine `restart:`-Richtlinie oder einen `healthcheck:`-Block. Ein
+ausgefallener Container wird heute nicht automatisch neu gestartet.
+
+## OPS — Systemhärtung und Netzwerksicherheit (System & Network Hardening)
+
+| Kontrolle | Umsetzung in dieser Anwendung |
+|---|---|
+| Nicht-Root-Container | Container laufen als dedizierter Nicht-Root-Benutzer (`Dockerfile`) |
+| Schreibgeschütztes Root-Dateisystem, keine zusätzlichen Capabilities | `read_only: true`, `cap_drop: ["ALL"]` für `app`/`worker` (`docker-compose.yml`) |
+| Netzwerksegmentierung | Datenbank-Ports (Postgres, Redis, Neo4j) sind nicht auf dem Host veröffentlicht — nur der TLS-Reverse-Proxy ist erreichbar (`docker-compose.yml`) |
+| Schema-/Migrationsversionierung | Versionierte, pro Migration einzeln committete Datenbank- und Vektorspeicher-Migrationen (`rag/migrations/`) |
 
 ## PSS / SWD — Patch- und Schwachstellenmanagement (Patch and Vulnerability Management)
 
