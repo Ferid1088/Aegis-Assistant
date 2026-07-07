@@ -78,8 +78,13 @@ def backend_and_ui():
     )
     _wait_for(f"{BACKEND_URL}/healthz")
 
+    # macOS/Apple Silicon: Celery's default prefork pool SIGSEGVs when forking a process
+    # with docling's native ML stack (onnxruntime/torch) already loaded (fork-unsafety
+    # with Accelerate/Metal-adjacent native code) -- --pool=solo avoids forking entirely
+    # for this test. Production's docker-compose.yml worker (Linux container) is
+    # unaffected and intentionally left unchanged.
     worker_proc = subprocess.Popen(
-        ["uv", "run", "celery", "-A", "rag.worker.celery_app", "worker", "--loglevel=info", "--concurrency=2"],
+        ["uv", "run", "celery", "-A", "rag.worker.celery_app", "worker", "--loglevel=info", "--pool=solo"],
         cwd=REPO_ROOT,
     )
 
@@ -156,13 +161,24 @@ def test_chat_answerable_query_returns_enriched_answer_and_citations(chat_sessio
 
 @pytest.mark.skipif(not PDF_PATH.exists(), reason=f"requires a real PDF fixture at {PDF_PATH} (gitignored, not checked in)")
 def test_chat_off_topic_query_hits_gate(chat_session):
+    # "Wie hoch ist die Vergütung?" deterministically triggers the answerability
+    # gate's clarification path (rag/capabilities/answerability.py's
+    # _check_required_inputs): it matches _AMOUNT_RE ("Vergütung") but names no
+    # pay grade, so `required_inputs` includes "grade", which is missing and not
+    # in SAFE_DEFAULTS -> verdict="clarification". This is a plain regex/rule
+    # check with no LLM call at all (gate_response() short-circuits generate()
+    # entirely), so it's fast and deterministic -- unlike a generic off-topic
+    # question (e.g. "What is the capital of France?"), which this gate does
+    # NOT specially detect (it only recognizes pay-scale-specific trigger
+    # patterns) and which a real LLM will happily answer from general
+    # knowledge, landing on verdict="answerable" instead of the gate path.
     conv = chat_session.post(f"{UI_URL}/api/v1/conversations")
     assert conv.status_code == 201, conv.text
     conv_id = conv.json()["id"]
 
     resp = chat_session.post(
         f"{UI_URL}/api/v1/conversations/{conv_id}/messages",
-        json={"question": "What is the capital of France?"},
+        json={"question": "Wie hoch ist die Vergütung?"},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
