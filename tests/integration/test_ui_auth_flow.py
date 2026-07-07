@@ -215,6 +215,12 @@ def test_sign_out_redirects_to_login_on_next_visit(backend_and_ui):
     assert resp.url == f"{UI_URL}/login"
 
 
+def test_login_page_renders_form(backend_and_ui):
+    resp = requests.get(f"{UI_URL}/login")
+    assert resp.status_code == 200
+    assert "Sign in to Aegis" in resp.text
+
+
 @pytest.fixture(scope="module")
 def short_ttl_backend_and_ui():
     engine = create_engine(settings.database_url)
