@@ -570,6 +570,7 @@ def _generate_impl(question: str, reranked: list[RetrievedChunk],
             "page_numbers": c.metadata["page_numbers"],
             "section": c.metadata.get("heading_path", []),
             "bboxes": c.metadata.get("bboxes", []),
+            "logical_doc_id": c.metadata.get("logical_doc_id"),
         }
         for c in reranked
     ]
@@ -689,13 +690,12 @@ def generate(state: QueryState) -> dict:
         )
         answer = llm.invoke(prompt)
         final_answer = answer.content
-        if assumptions:
-            final_answer = "\n".join([*assumptions, "", final_answer])
 
         citations = [
             {"chunk_id": c.chunk_id, "page_numbers": c.metadata["page_numbers"],
              "section": c.metadata.get("heading_path", []),
-             "bboxes": c.metadata.get("bboxes", [])}
+             "bboxes": c.metadata.get("bboxes", []),
+             "logical_doc_id": c.metadata.get("logical_doc_id")}
             for c in state["reranked"][:5]
         ]
         return {"answer": final_answer, "citations": citations, "context": val}
@@ -704,8 +704,6 @@ def generate(state: QueryState) -> dict:
         state["question"], state["reranked"],
         lang=lang, step_results=state.get("step_results"), ctx=ctx,
     )
-    if assumptions:
-        generated["answer"] = "\n".join([*assumptions, "", generated["answer"]])
     generated["response_source"] = "pipeline"
     return generated
 
