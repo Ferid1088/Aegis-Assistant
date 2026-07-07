@@ -363,6 +363,42 @@ def test_post_message_surfaces_verdict_and_enriched_citations(
 @patch("rag.api.routers.conversations.check_and_increment_inflight_generation", return_value=True)
 @patch("rag.api.routers.conversations.decrement_inflight_generation")
 @patch("rag.api.routers.conversations.build_query_graph")
+def test_post_message_citation_region_uses_real_bbox_dict_shape(
+    mock_build_graph, mock_decrement, mock_check, client, db_session, tmp_path, monkeypatch,
+):
+    from rag.config import settings
+    monkeypatch.setattr(settings, "sqlite_path", str(tmp_path / "documents.db"))
+    from rag.storage.document_store import SQLiteDocumentStore
+    from rag.domain.document_lifecycle import LogicalDocument
+
+    store = SQLiteDocumentStore()
+    store.create_logical_document(LogicalDocument(logical_doc_id="doc-1", source_identity="/mnt/docs/report.pdf"))
+    store.create_version("doc-1", content_hash="hash1", filename="report.pdf", num_pages=10)
+
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+
+    mock_graph = mock_build_graph.return_value
+    mock_graph.invoke.return_value = {
+        "answer": "42", "standalone_question": "What is the answer?", "turn_history": [],
+        "citations": [{
+            "chunk_id": "c1", "page_numbers": [1], "section": [],
+            "bboxes": [{"page": 1, "x": 0.1, "y": 0.2, "width": 0.3, "height": 0.4}],
+            "logical_doc_id": "doc-1",
+        }],
+    }
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/messages", json={"question": "What is the answer?"}, headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["citations"][0]["region"] == [0.1, 0.2, 0.3, 0.4]
+
+
+@patch("rag.api.routers.conversations.check_and_increment_inflight_generation", return_value=True)
+@patch("rag.api.routers.conversations.decrement_inflight_generation")
+@patch("rag.api.routers.conversations.build_query_graph")
 def test_post_message_citation_for_unresolvable_document_degrades_gracefully(
     mock_build_graph, mock_decrement, mock_check, client, db_session, tmp_path, monkeypatch,
 ):

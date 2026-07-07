@@ -38,7 +38,7 @@ class CitationResponse(BaseModel):
     document_title: str
     version_no: int
     page: int
-    region: tuple[int, int, int, int] | None = None
+    region: tuple[float, float, float, float] | None = None
 
 
 class MessageResponse(BaseModel):

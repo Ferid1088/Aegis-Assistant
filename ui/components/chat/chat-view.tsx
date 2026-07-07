@@ -71,8 +71,8 @@ export function ChatView() {
     setInput("");
   }
 
-  async function send() {
-    const q = input.trim();
+  async function send(override?: string) {
+    const q = (override ?? input).trim();
     if (!q || pending || locked) return;
     setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", content: q }]);
     setInput("");
@@ -139,7 +139,7 @@ export function ChatView() {
                 </div>
                 <AnswerBlock
                   answer={m.answer!}
-                  onCorrect={(correction) => { setInput(correction); setTimeout(send, 0); }}
+                  onCorrect={(correction) => { setInput(correction); send(correction); }}
                 />
               </div>
             )
@@ -169,7 +169,7 @@ export function ChatView() {
                 placeholder="Ask across your indexed corpus…"
                 className="flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-inkFaint"
               />
-              <button onClick={send} disabled={pending} aria-label="Send" className="grid h-8 w-8 place-items-center rounded-md bg-ink text-surface disabled:opacity-40">
+              <button onClick={() => send()} disabled={pending} aria-label="Send" className="grid h-8 w-8 place-items-center rounded-md bg-ink text-surface disabled:opacity-40">
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>

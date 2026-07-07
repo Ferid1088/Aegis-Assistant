@@ -52,8 +52,9 @@ def _enrich_citations(raw_citations: list[dict]) -> list[dict]:
         page_numbers = c.get("page_numbers") or []
         bboxes = c.get("bboxes") or []
         region = None
-        if bboxes and isinstance(bboxes[0], (list, tuple)) and len(bboxes[0]) == 4:
-            region = tuple(bboxes[0])
+        if bboxes and isinstance(bboxes[0], dict) and {"x", "y", "width", "height"} <= bboxes[0].keys():
+            b = bboxes[0]
+            region = (b["x"], b["y"], b["width"], b["height"])
         enriched.append({
             "chunk_id": c.get("chunk_id"),
             "document_id": logical_doc_id,
