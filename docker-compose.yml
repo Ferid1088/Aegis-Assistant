@@ -57,6 +57,31 @@ services:
     volumes:
       - ./data/redis:/data
 
+  vllm:
+    image: vllm/vllm-openai:latest
+    # Excluded from a plain `docker compose up -d` -- only started via
+    # `docker compose --profile gpu up -d vllm` on a GPU-equipped host.
+    # Verified for real: `docker compose config --services` (no profile)
+    # omits a profile-gated service entirely; `--profile gpu config
+    # --services` includes it (Phase 8.10c).
+    profiles: ["gpu"]
+    # Required by vLLM's own documented Docker usage: PyTorch uses shared
+    # memory for tensor-parallel inference under the hood.
+    ipc: host
+    command: ["--model", "${LLM_MODEL:-qwen2.5:7b}"]
+    ports: ["127.0.0.1:8000:8000"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
+    volumes:
+      # Matches vLLM's own documented Docker usage: the default HuggingFace
+      # cache path inside the official image is /root/.cache/huggingface.
+      - vllm_models:/root/.cache/huggingface
+
   worker:
     build: .
     image: rag-appliance-worker:latest
@@ -78,6 +103,12 @@ services:
       # steps; this container-internal hostname override takes precedence for
       # everything that actually runs inside app/worker.
       QDRANT_URL: http://qdrant:6333
+      # Same host-vs-container split as QDRANT_URL/DATABASE_URL above:
+      # install.py writes a host-reachable VLLM_BASE_URL
+      # (http://localhost:8000/v1, via vllm's loopback-published port)
+      # into the shared .env for host-side use; this container-internal
+      # hostname override takes precedence for app/worker (Phase 8.10c).
+      VLLM_BASE_URL: http://vllm:8000/v1
       # Same host-vs-container split, fixing a real bug: install.py's own
       # host-side healthcheck_main() (which calls check_redis(), Phase 8.10b)
       # could not resolve the "redis" hostname or reach its port from the
@@ -130,6 +161,12 @@ services:
       # steps; this container-internal hostname override takes precedence for
       # everything that actually runs inside app/worker.
       QDRANT_URL: http://qdrant:6333
+      # Same host-vs-container split as QDRANT_URL/DATABASE_URL above:
+      # install.py writes a host-reachable VLLM_BASE_URL
+      # (http://localhost:8000/v1, via vllm's loopback-published port)
+      # into the shared .env for host-side use; this container-internal
+      # hostname override takes precedence for app/worker (Phase 8.10c).
+      VLLM_BASE_URL: http://vllm:8000/v1
       # Same host-vs-container split, fixing a real bug: install.py's own
       # host-side healthcheck_main() (which calls check_redis(), Phase 8.10b)
       # could not resolve the "redis" hostname or reach its port from the
@@ -245,3 +282,4 @@ volumes:
   hf_models:
   prometheus_data:
   grafana_data:
+  vllm_models:
