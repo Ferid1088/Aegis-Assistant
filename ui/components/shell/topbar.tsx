@@ -1,10 +1,18 @@
 "use client";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { LogOut, Search } from "lucide-react";
+import { Button, Pill } from "@/components/ui/primitives";
 import type { SessionEntitlements } from "@/types";
-import { Pill } from "@/components/ui/primitives";
 
 export function Topbar({ session }: { session: SessionEntitlements }) {
+  const router = useRouter();
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  }
+
   return (
     <header className="flex h-12 items-center gap-4 border-b border-line bg-surface px-4">
       {session.nav.search && (
@@ -30,6 +38,9 @@ export function Topbar({ session }: { session: SessionEntitlements }) {
             <div className="text-[11px] text-inkFaint">{session.user.role}</div>
           </div>
         </div>
+        <Button variant="ghost" onClick={signOut} title="Sign out">
+          <LogOut className="h-4 w-4" />
+        </Button>
       </div>
     </header>
   );

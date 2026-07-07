@@ -185,6 +185,36 @@ def test_reusing_cookies_after_logout_is_rejected(backend_and_ui):
     assert resp.status_code == 401
 
 
+def test_unauthenticated_chat_redirects_to_login(backend_and_ui):
+    session = requests.Session()
+    resp = session.get(f"{UI_URL}/chat")
+    assert resp.status_code == 200  # requests follows the redirect
+    assert resp.url == f"{UI_URL}/login"
+
+
+def test_authenticated_chat_renders_shell_with_user_name(backend_and_ui):
+    session = requests.Session()
+    session.post(
+        f"{UI_URL}/api/auth/login",
+        json={"username": "plain-user", "password": "correct-horse-battery-staple"},
+    )
+    resp = session.get(f"{UI_URL}/chat")
+    assert resp.status_code == 200
+    assert "plain-user" in resp.text
+    assert "Assistant" in resp.text
+
+
+def test_sign_out_redirects_to_login_on_next_visit(backend_and_ui):
+    session = requests.Session()
+    session.post(
+        f"{UI_URL}/api/auth/login",
+        json={"username": "plain-user", "password": "correct-horse-battery-staple"},
+    )
+    session.post(f"{UI_URL}/api/auth/logout")
+    resp = session.get(f"{UI_URL}/chat")
+    assert resp.url == f"{UI_URL}/login"
+
+
 @pytest.fixture(scope="module")
 def short_ttl_backend_and_ui():
     engine = create_engine(settings.database_url)
