@@ -230,6 +230,7 @@ def test_run_install_syncs_in_process_llm_backend_from_env(
 ):
     from rag.config import settings
     original_llm_backend = settings.llm_backend
+    original_llm_model = settings.llm_model
     original_neo4j_password = settings.neo4j_password
     original_qdrant_url = settings.qdrant_url
     original_database_url = settings.database_url
@@ -252,6 +253,7 @@ def test_run_install_syncs_in_process_llm_backend_from_env(
         assert settings.llm_backend == "vllm"
     finally:
         settings.llm_backend = original_llm_backend
+        settings.llm_model = original_llm_model
         settings.neo4j_password = original_neo4j_password
         settings.qdrant_url = original_qdrant_url
         settings.database_url = original_database_url
