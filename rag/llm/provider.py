@@ -52,12 +52,14 @@ def _make_chat(model: str, temperature: float):
             api_key="EMPTY",
             temperature=temperature,
             max_tokens=settings.max_generation_tokens,
+            timeout=settings.llm_request_timeout_seconds,
         )
     return ChatOllama(
         model=model,
         base_url=settings.ollama_base_url,
         temperature=temperature,
         num_predict=settings.max_generation_tokens,
+        client_kwargs={"timeout": settings.llm_request_timeout_seconds},
     )
 
 

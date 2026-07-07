@@ -8,7 +8,11 @@ from rag.api.schemas.conversations import (
     ConversationResponse, ErasureResponse, LegalHoldRequest, MessageRequest, MessageResponse,
     TransitionRequest, TurnResponse,
 )
+from rag.config import settings
 from rag.crosscutting.security.audit_events import record_admin_change
+from rag.crosscutting.security.generation_limits import (
+    check_and_increment_inflight_generation, decrement_inflight_generation,
+)
 from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import conversation_service, conversation_turn_service
 from rag.domain.conversation import ConversationState
@@ -137,6 +141,9 @@ def post_message(
     if conv.state != ConversationState.ACTIVE.value:
         raise HTTPException(status_code=409, detail=f"conversation is {conv.state}, not active")
 
+    if not check_and_increment_inflight_generation(settings.max_inflight_generations):
+        raise HTTPException(status_code=429, detail="too many concurrent generations, try again shortly")
+
     recent = conversation_turn_service.list_recent_turns(db, conversation_id, limit=_MAX_HISTORY_TURNS)
     state = {
         "question": body.question,
@@ -146,9 +153,12 @@ def post_message(
     if body.doc_filter:
         state["doc_filter"] = body.doc_filter
 
-    result = build_query_graph().invoke(
-        state, config={"configurable": {"thread_id": str(conversation_id)}},
-    )
+    try:
+        result = build_query_graph().invoke(
+            state, config={"configurable": {"thread_id": str(conversation_id)}},
+        )
+    finally:
+        decrement_inflight_generation()
 
     turn = conversation_turn_service.append_turn(
         db, conversation_id, question=body.question,

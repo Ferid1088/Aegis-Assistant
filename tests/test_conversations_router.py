@@ -202,6 +202,67 @@ def test_post_message_returns_answer_and_persists_turn(mock_build_graph, client,
     }
 
 
+@patch("rag.api.routers.conversations.decrement_inflight_generation")
+@patch("rag.api.routers.conversations.check_and_increment_inflight_generation", return_value=False)
+@patch("rag.api.routers.conversations.build_query_graph")
+def test_post_message_rejected_when_generation_cap_reached(
+    mock_build_graph, mock_check, mock_decrement, client, db_session,
+):
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/messages", json={"question": "hi"}, headers=headers,
+    )
+
+    assert resp.status_code == 429
+    mock_build_graph.assert_not_called()
+    mock_decrement.assert_not_called()  # never incremented, so must not decrement either
+
+
+@patch("rag.api.routers.conversations.decrement_inflight_generation")
+@patch("rag.api.routers.conversations.check_and_increment_inflight_generation", return_value=True)
+@patch("rag.api.routers.conversations.build_query_graph")
+def test_post_message_decrements_generation_counter_on_success(
+    mock_build_graph, mock_check, mock_decrement, client, db_session,
+):
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+
+    mock_build_graph.return_value.invoke.return_value = {
+        "answer": "42", "citations": [], "standalone_question": "hi", "turn_history": [],
+    }
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/messages", json={"question": "hi"}, headers=headers,
+    )
+
+    assert resp.status_code == 200
+    mock_decrement.assert_called_once()
+
+
+@patch("rag.api.routers.conversations.decrement_inflight_generation")
+@patch("rag.api.routers.conversations.check_and_increment_inflight_generation", return_value=True)
+@patch("rag.api.routers.conversations.build_query_graph")
+def test_post_message_decrements_generation_counter_even_when_graph_raises(
+    mock_build_graph, mock_check, mock_decrement, client, db_session,
+):
+    _, token = _make_user_with_token(db_session, "alice")
+    headers = {"Authorization": f"Bearer {token}"}
+    conv_id = client.post("/api/v1/conversations", headers=headers).json()["id"]
+
+    mock_build_graph.return_value.invoke.side_effect = RuntimeError("LLM backend unreachable")
+
+    resp = client.post(
+        f"/api/v1/conversations/{conv_id}/messages", json={"question": "hi"}, headers=headers,
+    )
+
+    assert resp.status_code == 500
+    mock_decrement.assert_called_once()
+
+
 @patch("rag.api.routers.conversations.build_query_graph")
 def test_post_message_rejected_when_conversation_not_active(mock_build_graph, client, db_session):
     _, token = _make_user_with_token(db_session, "alice")
