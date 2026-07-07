@@ -12,6 +12,17 @@ class Settings(BaseSettings):
     llm_model: str = "qwen2.5:7b"
     extraction_model: str = "qwen2.5:7b"
 
+    # Global in-flight generation cap (Phase 8.10c) -- the shared LLM
+    # backend's total concurrent-generation ceiling (source doc: "~10-25
+    # concurrent generations" for one 24GB-GPU qwen2.5:7b instance). Tune
+    # to your actual hardware; this is a GLOBAL cap, not a per-user limit.
+    max_inflight_generations: int = 20
+
+    # Per-request timeout for the LLM generation call itself (both the
+    # vLLM and Ollama backends) -- a hung backend now fails cleanly
+    # instead of holding a FastAPI worker thread forever (Phase 8.10c).
+    llm_request_timeout_seconds: int = 60
+
     # Lets install.py/update.py's post-bootstrap healthcheck skip the LLM round-trip --
     # for CI jobs that intentionally don't set up Ollama/vLLM (that stack is heavy and
     # only the eval/upload-and-chat job needs it), a stack with no LLM backend running
