@@ -18,3 +18,9 @@ docs/*
 .DS_Store
 backups/
 eval/results/
+
+# ui/ (Next.js frontend)
+ui/node_modules/
+ui/.next/
+ui/.env.local
+ui/tsconfig.tsbuildinfo

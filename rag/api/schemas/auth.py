@@ -37,3 +37,28 @@ class MeResponse(BaseModel):
     username: str
     roles: list[str]
     effective_levels: list[str]
+
+
+class SessionUser(BaseModel):
+    id: str
+    username: str
+    name: str
+    role: str
+    department: str | None
+    status: str
+
+
+class SessionNav(BaseModel):
+    chat: bool
+    search: bool
+    documents: bool
+    admin: bool
+    evaluation: bool
+    audit: bool
+    system: bool
+
+
+class SessionResponse(BaseModel):
+    user: SessionUser
+    edition: str
+    nav: SessionNav

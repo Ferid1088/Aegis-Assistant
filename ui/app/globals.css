@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  /* Default (ochre) theme — kept in sync with lib/themes.ts THEMES[0].
+     ThemeProvider overrides these on <html> when a theme is chosen. */
+  --canvas: #F3EEE3; --surface: #FBF8F1; --surface-muted: #EFE9DC;
+  --line: #E2DAC9; --line-strong: #D3C8B2;
+  --ink: #2B2620; --ink-soft: #6B6459; --ink-faint: #9A9284;
+  --accent: #B08320; --accent-soft: #C79A3A; --accent-wash: #EFE1BE;
+
+  /* status (theme-independent) */
+  --online: #5B8C51; --online-wash: #DCE7D3;
+  --degraded: #B08320;
+  --offline: #B0553A; --offline-wash: #EAD5CC;
+  --info: #4E6E8E; --info-wash: #D9E3EC;
+  --role: #7A5EA8; --role-wash: #E4DCF0;
+}
+
+html, body { height: 100%; }
+body { @apply bg-canvas text-ink font-sans antialiased; }
+
+/* smooth recolor when switching themes */
+body, .themed-transition { transition: background-color 0.25s ease, color 0.25s ease; }
+
+.vertical-rl { writing-mode: vertical-rl; text-orientation: mixed; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+mark { @apply bg-accentWash text-ink rounded-[3px] px-0.5; }

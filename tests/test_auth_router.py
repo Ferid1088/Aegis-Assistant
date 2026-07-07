@@ -1,7 +1,7 @@
 import pyotp
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -9,7 +9,7 @@ from rag.api.main import create_app
 from rag.crosscutting.security.password import hash_password
 from rag.storage.sql import models  # noqa: F401
 from rag.storage.sql.base import Base, get_db
-from rag.storage.sql.models import User
+from rag.storage.sql.models import Department, Role, RolePermission, User, UserRole
 
 
 @pytest.fixture()
@@ -95,3 +95,69 @@ def test_mfa_enroll_twice_returns_409(client):
 
     second = client.post("/api/v1/auth/mfa/enroll", headers={"Authorization": f"Bearer {access}"})
     assert second.status_code == 409
+
+
+@pytest.fixture()
+def client_with_db(db_session, tmp_path, monkeypatch):
+    from rag.config import settings
+    monkeypatch.setattr(settings, "audit_log_dir", str(tmp_path))
+    db_session.add(User(username="alice", password_hash=hash_password("correct-horse-battery-staple")))
+    db_session.commit()
+
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: db_session
+    return TestClient(app, raise_server_exceptions=False), db_session
+
+
+def test_session_endpoint_for_plain_user_has_no_admin_nav(client):
+    login = client.post("/api/v1/auth/login", json={"username": "alice", "password": "correct-horse-battery-staple"})
+    access = login.json()["access_token"]
+
+    resp = client.get("/api/v1/session", headers={"Authorization": f"Bearer {access}"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["user"]["username"] == "alice"
+    assert body["user"]["name"] == "alice"
+    assert body["user"]["role"] == "—"
+    assert body["user"]["department"] is None
+    assert body["user"]["status"] == "active"
+    assert body["edition"] == "enterprise"
+    assert body["nav"] == {
+        "chat": True, "search": True, "documents": True,
+        "admin": False, "evaluation": False, "audit": False, "system": False,
+    }
+
+
+def test_session_endpoint_grants_admin_nav_for_admin_permission(client_with_db):
+    client, db = client_with_db
+    login = client.post("/api/v1/auth/login", json={"username": "alice", "password": "correct-horse-battery-staple"})
+    access = login.json()["access_token"]
+
+    user = db.execute(select(User).where(User.username == "alice")).scalar_one()
+    department = Department(name="Engineering")
+    db.add(department)
+    db.flush()
+    user.department_id = department.id
+    role = Role(name="Super Admin")
+    db.add(role)
+    db.flush()
+    db.add(RolePermission(role_id=role.id, permission="admin:users"))
+    db.add(UserRole(user_id=user.id, role_id=role.id))
+    db.commit()
+
+    resp = client.get("/api/v1/session", headers={"Authorization": f"Bearer {access}"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["user"]["role"] == "Super Admin"
+    assert body["user"]["department"] == "Engineering"
+    assert body["nav"] == {
+        "chat": True, "search": True, "documents": True,
+        "admin": True, "evaluation": True, "audit": True, "system": True,
+    }
+
+
+def test_session_endpoint_requires_auth():
+    from rag.api.main import create_app as _create_app
+    unauth_client = TestClient(_create_app(), raise_server_exceptions=False)
+    resp = unauth_client.get("/api/v1/session")
+    assert resp.status_code == 401
