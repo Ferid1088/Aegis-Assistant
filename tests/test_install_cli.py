@@ -358,3 +358,134 @@ def test_run_install_writes_grafana_admin_password(
 
     written_values = mock_write_env.call_args.args[1]
     assert "GRAFANA_ADMIN_PASSWORD" in written_values
+
+
+@patch("install.check_gpu")
+@patch("install.wait_for_postgres_ready")
+@patch("install.healthcheck_main")
+@patch("install.ensure_first_admin")
+@patch("install.SessionLocal")
+@patch("install.run_store_migrate")
+@patch("install.subprocess.run")
+@patch("install.write_missing_env_vars")
+@patch("install.check_ram")
+@patch("install.check_docker")
+def test_run_install_docker_compose_up_includes_gpu_profile_when_gpu_detected(
+    mock_check_docker, mock_check_ram, mock_write_env,
+    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_wait_for_postgres, mock_check_gpu,
+):
+    # Final-review Finding 1: docker-compose.yml's vllm service is
+    # profiles: ["gpu"] -- Compose silently excludes it from a plain
+    # `docker compose up -d`. On a GPU install (LLM_BACKEND=vllm written
+    # above), the `docker compose up -d` call itself must include
+    # `--profile gpu`, or vllm never starts and the healthcheck step later
+    # in this same run fails trying to reach it.
+    mock_check_gpu.return_value = True
+    mock_session_local.return_value = MagicMock()
+    mock_ensure_admin.return_value = None
+
+    import install
+    install.run_install()
+
+    compose_up_calls = [
+        c for c in mock_subprocess_run.call_args_list
+        if c.args[0][-2:] == ["up", "-d"]
+    ]
+    assert len(compose_up_calls) == 1
+    argv = compose_up_calls[0].args[0]
+    assert argv == ["docker", "compose", "--profile", "gpu", "up", "-d"]
+
+
+@patch("install.check_gpu")
+@patch("install.wait_for_postgres_ready")
+@patch("install.healthcheck_main")
+@patch("install.ensure_first_admin")
+@patch("install.SessionLocal")
+@patch("install.run_store_migrate")
+@patch("install.subprocess.run")
+@patch("install.write_missing_env_vars")
+@patch("install.check_ram")
+@patch("install.check_docker")
+def test_run_install_docker_compose_up_unchanged_when_no_gpu(
+    mock_check_docker, mock_check_ram, mock_write_env,
+    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_wait_for_postgres, mock_check_gpu,
+):
+    # Non-GPU path must be provably unchanged: no --profile flag, exact same
+    # argv as before this fix.
+    mock_check_gpu.return_value = False
+    mock_session_local.return_value = MagicMock()
+    mock_ensure_admin.return_value = None
+
+    import install
+    install.run_install()
+
+    compose_up_calls = [
+        c for c in mock_subprocess_run.call_args_list
+        if c.args[0][-2:] == ["up", "-d"]
+    ]
+    assert len(compose_up_calls) == 1
+    argv = compose_up_calls[0].args[0]
+    assert argv == ["docker", "compose", "up", "-d"]
+    assert "--profile" not in argv
+    assert "gpu" not in argv
+
+
+@patch("install.check_gpu")
+@patch("install.wait_for_postgres_ready")
+@patch("install.healthcheck_main")
+@patch("install.ensure_first_admin")
+@patch("install.SessionLocal")
+@patch("install.run_store_migrate")
+@patch("install.subprocess.run")
+@patch("install.write_missing_env_vars")
+@patch("install.check_ram")
+@patch("install.check_docker")
+def test_run_install_writes_hf_format_llm_model_when_gpu_detected(
+    mock_check_docker, mock_check_ram, mock_write_env,
+    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_wait_for_postgres, mock_check_gpu,
+):
+    # Final-review Finding 2: "qwen2.5:7b" (rag/config.py's Ollama-format
+    # default) is not a valid vLLM/HuggingFace repo id -- a GPU install must
+    # also write an HF-format LLM_MODEL default so vllm's container command
+    # (docker-compose.yml: ${LLM_MODEL:-qwen2.5:7b}) can actually load a model.
+    mock_check_gpu.return_value = True
+    mock_session_local.return_value = MagicMock()
+    mock_ensure_admin.return_value = None
+
+    import install
+    install.run_install()
+
+    written_values = mock_write_env.call_args.args[1]
+    assert written_values["LLM_MODEL"] == "Qwen/Qwen2.5-7B-Instruct"
+
+
+@patch("install.check_gpu")
+@patch("install.wait_for_postgres_ready")
+@patch("install.healthcheck_main")
+@patch("install.ensure_first_admin")
+@patch("install.SessionLocal")
+@patch("install.run_store_migrate")
+@patch("install.subprocess.run")
+@patch("install.write_missing_env_vars")
+@patch("install.check_ram")
+@patch("install.check_docker")
+def test_run_install_does_not_write_llm_model_when_no_gpu(
+    mock_check_docker, mock_check_ram, mock_write_env,
+    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_wait_for_postgres, mock_check_gpu,
+):
+    # Non-GPU path must be provably unchanged: no LLM_MODEL key written at
+    # all, leaving rag/config.py's own "qwen2.5:7b" class-level default (an
+    # Ollama-format tag, correct for Ollama) in effect untouched.
+    mock_check_gpu.return_value = False
+    mock_session_local.return_value = MagicMock()
+    mock_ensure_admin.return_value = None
+
+    import install
+    install.run_install()
+
+    written_values = mock_write_env.call_args.args[1]
+    assert "LLM_MODEL" not in written_values

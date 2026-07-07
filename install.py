@@ -35,7 +35,7 @@ def run_install() -> None:
 
     print("== Generating secrets ==")
     env_path = Path(".env")
-    written = write_missing_env_vars(env_path, {
+    env_vars = {
         "JWT_SECRET_KEY": generate_jwt_secret(),
         "KEYSTORE_MASTER_KEY": generate_keystore_master_key(),
         # Consumed by docker-compose.yml's postgres/pgbouncer/app/worker services
@@ -61,7 +61,17 @@ def run_install() -> None:
         # own LLM_BACKEND choice already sitting in .env.
         "LLM_BACKEND": "vllm" if has_gpu else "ollama",
         "VLLM_BASE_URL": "http://localhost:8000/v1",
-    })
+    }
+    if has_gpu:
+        # vLLM (and the underlying HuggingFace loader) needs a HuggingFace repo
+        # id, not Ollama's registry-tag form -- rag/config.py's own
+        # llm_model class-level default ("qwen2.5:7b") is Ollama-format and is
+        # deliberately left untouched for the no-GPU/Ollama path. Only written
+        # once, on first install, same as LLM_BACKEND above: re-running
+        # install.py never overwrites an operator's own LLM_MODEL choice
+        # already sitting in .env.
+        env_vars["LLM_MODEL"] = "Qwen/Qwen2.5-7B-Instruct"
+    written = write_missing_env_vars(env_path, env_vars)
     if written:
         print(f"Generated: {', '.join(written)}")
     else:
@@ -119,7 +129,17 @@ def run_install() -> None:
     # postgres/neo4j/redis subdirectories Docker still creates underneath it are
     # fine root-owned since no host-side code writes into those directly.
     Path("data").mkdir(exist_ok=True)
-    subprocess.run(["docker", "compose", "up", "-d"], check=True)
+    # docker-compose.yml's vllm service is profiles: ["gpu"] -- Compose excludes
+    # a profile-gated service from a plain `docker compose up -d` unless
+    # `--profile gpu` is passed. Without this, a GPU install would write
+    # LLM_BACKEND=vllm above and then never actually start the vllm container,
+    # so the healthcheck step below would fail trying to reach it. No-GPU path
+    # is unchanged: no profile flag, same argv as before.
+    compose_up_cmd = ["docker", "compose"]
+    if has_gpu:
+        compose_up_cmd += ["--profile", "gpu"]
+    compose_up_cmd += ["up", "-d"]
+    subprocess.run(compose_up_cmd, check=True)
 
     # `up -d` returns once containers are started, not once postgres has finished
     # its first-run initdb bootstrap -- wait for it before anything execs into it.
@@ -149,6 +169,9 @@ def run_install() -> None:
         print("Admin account already exists, skipping.")
 
     print("== Verifying health ==")
+    # A fresh vLLM install may still be downloading/loading its model here and
+    # fail this healthcheck through no fault of the install itself -- set
+    # SKIP_LLM_HEALTHCHECK=true (rag/config.py) to bypass the LLM check alone.
     healthcheck_main()
 
     print("\n🎉 Install complete.")
