@@ -185,6 +185,10 @@ class ConversationTurn(Base):
     standalone_question: Mapped[str] = mapped_column(String, nullable=False)
     answer: Mapped[str] = mapped_column(String, nullable=False)
     citations: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    verdict: Mapped[str] = mapped_column(String, default="answerable", nullable=False)
+    assumptions: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    clarification_question: Mapped[str | None] = mapped_column(String, nullable=True)
+    unanswerable_reason: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
 

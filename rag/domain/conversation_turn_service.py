@@ -9,6 +9,8 @@ from rag.storage.sql.models import ConversationTurn
 def append_turn(
     db: Session, conversation_id: uuid.UUID, *, question: str, standalone_question: str,
     answer: str, citations: list,
+    verdict: str = "answerable", assumptions: list | None = None,
+    clarification_question: str | None = None, unanswerable_reason: str | None = None,
 ) -> ConversationTurn:
     next_index = db.execute(
         select(func.coalesce(func.max(ConversationTurn.turn_index), 0))
@@ -18,6 +20,8 @@ def append_turn(
     turn = ConversationTurn(
         conversation_id=conversation_id, turn_index=next_index, question=question,
         standalone_question=standalone_question, answer=answer, citations=citations,
+        verdict=verdict, assumptions=assumptions or [],
+        clarification_question=clarification_question, unanswerable_reason=unanswerable_reason,
     )
     db.add(turn)
     db.commit()

@@ -53,3 +53,26 @@ def test_to_turn_history_matches_finalize_turn_key_shape(db_session):
     history = conversation_turn_service.to_turn_history(turns)
 
     assert history == [{"user_question": "q1", "standalone_question": "sq1", "answer": "a1"}]
+
+
+def test_append_turn_persists_verdict_fields(db_session):
+    conv = _make_conversation(db_session)
+    turn = conversation_turn_service.append_turn(
+        db_session, conv.id, question="q1", standalone_question="q1",
+        answer="a1", citations=[],
+        verdict="assumption", assumptions=["Assuming X."],
+        clarification_question=None, unanswerable_reason=None,
+    )
+    assert turn.verdict == "assumption"
+    assert turn.assumptions == ["Assuming X."]
+    assert turn.clarification_question is None
+    assert turn.unanswerable_reason is None
+
+
+def test_append_turn_defaults_verdict_to_answerable(db_session):
+    conv = _make_conversation(db_session)
+    turn = conversation_turn_service.append_turn(
+        db_session, conv.id, question="q1", standalone_question="q1", answer="a1", citations=[],
+    )
+    assert turn.verdict == "answerable"
+    assert turn.assumptions == []
