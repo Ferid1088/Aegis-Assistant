@@ -46,10 +46,15 @@ def test_http_redirects_to_https():
 
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")
-def test_database_ports_are_not_published():
-    assert _port_is_closed("localhost", 5432)  # postgres
-    assert _port_is_closed("localhost", 6379)  # redis
-    assert _port_is_closed("localhost", 7687)  # neo4j (bolt)
+def test_database_ports_are_not_publicly_exposed():
+    # postgres (Phase 8.10a/8.10b) and redis (Phase 8.10b's Redis-mandatory
+    # fix) are intentionally loopback-published -- install.py's own host-side
+    # healthcheck/migration steps need to reach them, and 127.0.0.1-only is
+    # not a public exposure (same posture as qdrant's existing loopback port).
+    # neo4j has no host-side caller needing it and stays fully unpublished.
+    assert not _port_is_closed("localhost", 5432)  # postgres, loopback-only
+    assert not _port_is_closed("localhost", 6379)  # redis, loopback-only
+    assert _port_is_closed("localhost", 7687)  # neo4j (bolt) -- still fully unpublished
 
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")

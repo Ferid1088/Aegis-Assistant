@@ -50,6 +50,10 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Loopback-only, matching postgres/qdrant's existing convention -- needed
+    # so install.py's own host-side healthcheck (check_redis(), Phase 8.10b)
+    # can reach it; not a public port, same security posture as those two.
+    ports: ["127.0.0.1:6379:6379"]
     volumes:
       - ./data/redis:/data
 
@@ -74,6 +78,16 @@ services:
       # steps; this container-internal hostname override takes precedence for
       # everything that actually runs inside app/worker.
       QDRANT_URL: http://qdrant:6333
+      # Same host-vs-container split, fixing a real bug: install.py's own
+      # host-side healthcheck_main() (which calls check_redis(), Phase 8.10b)
+      # could not resolve the "redis" hostname or reach its port from the
+      # host -- REDIS_URL was written into .env as the container-internal
+      # value with no override, unlike DATABASE_URL/QDRANT_URL. Verified for
+      # real: `redis.Redis.from_url("redis://redis:6379")` from the host
+      # fails DNS resolution. install.py now writes a host-reachable
+      # REDIS_URL (redis://localhost:6379, via redis's new loopback port);
+      # this container-internal override takes precedence inside app/worker.
+      REDIS_URL: redis://redis:6379
       # `uv run` re-verifies/reconciles .venv against uv.lock on EVERY startup, not
       # just once at build time -- observed for real: every `docker compose
       # restart` re-triggers "Uninstalled N package(s)" / "Installed N package(s)"
@@ -116,6 +130,16 @@ services:
       # steps; this container-internal hostname override takes precedence for
       # everything that actually runs inside app/worker.
       QDRANT_URL: http://qdrant:6333
+      # Same host-vs-container split, fixing a real bug: install.py's own
+      # host-side healthcheck_main() (which calls check_redis(), Phase 8.10b)
+      # could not resolve the "redis" hostname or reach its port from the
+      # host -- REDIS_URL was written into .env as the container-internal
+      # value with no override, unlike DATABASE_URL/QDRANT_URL. Verified for
+      # real: `redis.Redis.from_url("redis://redis:6379")` from the host
+      # fails DNS resolution. install.py now writes a host-reachable
+      # REDIS_URL (redis://localhost:6379, via redis's new loopback port);
+      # this container-internal override takes precedence inside app/worker.
+      REDIS_URL: redis://redis:6379
       # See worker's UV_NO_SYNC comment above -- same reconciliation-on-every-start
       # behavior was observed for `app` too.
       UV_NO_SYNC: "1"

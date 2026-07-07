@@ -106,10 +106,14 @@ def test_run_install_syncs_in_process_neo4j_password_and_qdrant_url_from_env(
     # mock_read_env_value.return_value applies to every read_env_value() call
     # install.run_install() makes -- since Phase 8.10b, that now also includes
     # a POSTGRES_PASSWORD read that rebuilds settings.database_url (reset_engine
-    # isn't mocked here, so the real one runs too, harmlessly). Save/restore it
-    # so this test doesn't leak a bogus database_url into later tests' shared
-    # `settings` singleton.
+    # isn't mocked here, so the real one runs too, harmlessly), and a REDIS_URL
+    # read that resyncs settings.redis_url (fixing a real bug: install.py's
+    # host-side healthcheck_main() couldn't resolve the "redis" hostname, since
+    # settings.redis_url started at the "" default and was never resynced).
+    # Save/restore both so this test doesn't leak a bogus value into later
+    # tests' shared `settings` singleton.
     original_database_url = settings.database_url
+    original_redis_url = settings.redis_url
     try:
         mock_session_local.return_value = MagicMock()
         mock_ensure_admin.return_value = None
@@ -118,23 +122,26 @@ def test_run_install_syncs_in_process_neo4j_password_and_qdrant_url_from_env(
         import install
         install.run_install()
 
-        # NEO4J_PASSWORD, QDRANT_URL, and (since Phase 8.10b) POSTGRES_PASSWORD
-        # must be re-read from the .env file install.py just wrote, and used to
+        # NEO4J_PASSWORD, QDRANT_URL, POSTGRES_PASSWORD, and REDIS_URL must all
+        # be re-read from the .env file install.py just wrote, and used to
         # update the already-constructed `settings` singleton -- otherwise
         # run_store_migrate.main() and healthcheck_main() (called later in this
         # same process) would silently keep using settings' stale import-time
-        # defaults (embedded-mode Qdrant, in the QDRANT_URL case) for this
-        # entire run.
-        assert mock_read_env_value.call_count == 3
+        # defaults (embedded-mode Qdrant, in the QDRANT_URL case; no Redis at
+        # all, in the REDIS_URL case) for this entire run.
+        assert mock_read_env_value.call_count == 4
         assert call(Path(".env"), "NEO4J_PASSWORD") in mock_read_env_value.call_args_list
         assert call(Path(".env"), "QDRANT_URL") in mock_read_env_value.call_args_list
+        assert call(Path(".env"), "REDIS_URL") in mock_read_env_value.call_args_list
         assert call(Path(".env"), "POSTGRES_PASSWORD") in mock_read_env_value.call_args_list
         assert settings.neo4j_password == "freshly-generated-secret"
         assert settings.qdrant_url == "freshly-generated-secret"
+        assert settings.redis_url == "freshly-generated-secret"
     finally:
         settings.neo4j_password = original_neo4j_password
         settings.qdrant_url = original_qdrant_url
         settings.database_url = original_database_url
+        settings.redis_url = original_redis_url
 
 
 @patch("install.reset_engine")
@@ -158,13 +165,15 @@ def test_run_install_syncs_in_process_database_url_from_generated_postgres_passw
     original_database_url = settings.database_url
     # mock_read_env_value.return_value applies to *every* read_env_value() call
     # install.run_install() makes, not just the POSTGRES_PASSWORD one this test
-    # cares about -- so it also flows into settings.neo4j_password/qdrant_url
-    # via the earlier resync lines. Save/restore those too, or this test would
-    # leak "freshly-generated-postgres-secret" into later tests' shared
-    # `settings` singleton (e.g. a subsequent real Qdrant-hitting test would
-    # try to connect to a host literally named "freshly-generated-postgres-secret").
+    # cares about -- so it also flows into settings.neo4j_password/qdrant_url/
+    # redis_url via the earlier resync lines. Save/restore those too, or this
+    # test would leak "freshly-generated-postgres-secret" into later tests'
+    # shared `settings` singleton (e.g. a subsequent real Qdrant-hitting test
+    # would try to connect to a host literally named
+    # "freshly-generated-postgres-secret").
     original_neo4j_password = settings.neo4j_password
     original_qdrant_url = settings.qdrant_url
+    original_redis_url = settings.redis_url
     try:
         mock_session_local.return_value = MagicMock()
         mock_ensure_admin.return_value = None
@@ -187,6 +196,7 @@ def test_run_install_syncs_in_process_database_url_from_generated_postgres_passw
         settings.database_url = original_database_url
         settings.neo4j_password = original_neo4j_password
         settings.qdrant_url = original_qdrant_url
+        settings.redis_url = original_redis_url
 
 
 @patch("install.ensure_glitchtip_database")

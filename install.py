@@ -45,7 +45,12 @@ def run_install() -> None:
         # POSTGRES_PASSWORD only during its first-ever initdb on an empty volume.
         "POSTGRES_PASSWORD": generate_postgres_password(),
         "NEO4J_PASSWORD": generate_neo4j_password(),
-        "REDIS_URL": "redis://redis:6379",
+        # Host-reachable (via redis's new loopback-published port) -- host-side
+        # steps in this same process (healthcheck_main()'s check_redis()) need
+        # this, same host-vs-container split as QDRANT_URL below. The
+        # container-internal override lives in docker-compose.yml's app/worker
+        # environment: blocks.
+        "REDIS_URL": "redis://localhost:6379",
         "QDRANT_URL": "http://localhost:6333",
         "GLITCHTIP_SECRET_KEY": generate_glitchtip_secret_key(),
         "GRAFANA_ADMIN_PASSWORD": generate_grafana_admin_password(),
@@ -69,6 +74,14 @@ def run_install() -> None:
     # would silently run against embedded Qdrant (./data/qdrant via QdrantClient(path=...))
     # instead of the real `qdrant` server container this whole sub-phase stands up.
     settings.qdrant_url = read_env_value(env_path, "QDRANT_URL") or settings.qdrant_url
+    # Same class of bug as neo4j_password/qdrant_url above: settings.redis_url
+    # was constructed at import time with the "" default -- on a fresh
+    # install, REDIS_URL doesn't exist in .env until write_missing_env_vars()
+    # writes it a few lines above. Without this, healthcheck_main()'s
+    # check_redis() call below would find settings.redis_url == "" -> get_redis()
+    # returns None -> raise, failing every fresh install's final healthcheck
+    # step even though Redis is actually running fine.
+    settings.redis_url = read_env_value(env_path, "REDIS_URL") or settings.redis_url
     # Same class of bug as neo4j_password/qdrant_url above, but database_url
     # can't use the same `or` passthrough idiom directly -- POSTGRES_PASSWORD
     # is only the password component, not the full connection string. Rebuild
