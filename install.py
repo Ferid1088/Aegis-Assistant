@@ -118,7 +118,7 @@ def run_install() -> None:
     # Same class of bug as neo4j_password/qdrant_url above, but database_url
     # can't use the same `or` passthrough idiom directly -- POSTGRES_PASSWORD
     # is only the password component, not the full connection string. Rebuild
-    # it here so run_store_migrate.main()/first-admin creation/healthcheck_main()
+    # it here so run_store_migrate.main()/healthcheck_main()
     # below (all later in this same process) use the real generated password
     # instead of the stale import-time dev-default. reset_engine() clears
     # rag/infra/stores/sql/base.py's cached engine so the next SessionLocal() call

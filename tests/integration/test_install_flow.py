@@ -6,14 +6,12 @@ Run with: uv run pytest tests/integration/test_install_flow.py -v -s
 import subprocess
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from rag.bootstrap.env_writer import write_missing_env_vars
-from rag.bootstrap.first_admin import ADMIN_PERMISSIONS
 from rag.config import settings
 from rag.infra.stores.sql import models  # noqa: F401
-from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole
 
 
 def _docker_available() -> bool:
@@ -44,7 +42,13 @@ def _reset_schema(engine) -> None:
 
 
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")
-def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
+def test_install_writes_secrets_and_is_idempotent(tmp_path, monkeypatch):
+    """install.py no longer creates an admin account (that's the web setup
+    wizard's job, /api/v1/setup -- see tests/integration/test_ui_auth_flow.py for
+    real end-to-end coverage of that flow). This test instead proves the parts
+    install.py still owns: it writes real secrets to .env against a genuinely
+    empty database, runs real migrations end-to-end, and a second run is a
+    genuine no-op (no secret regeneration, no migration re-apply failure)."""
     import install
 
     # install.py's write_missing_env_vars call uses a bare Path(".env"), which
@@ -78,46 +82,17 @@ def test_install_creates_admin_and_is_idempotent(tmp_path, monkeypatch):
 
         # -- migrations applied: install.run_install()'s own `alembic upgrade head`
         # step is what creates the schema against this genuinely empty database
-        # (dropped above); a real admin row below proves the schema it created
-        # is usable end-to-end.
-
-        session = sessionmaker(bind=engine)()
-        try:
-            users_first = session.execute(select(User)).scalars().all()
-            assert len(users_first) == 1
-            admin = users_first[0]
-            assert admin.username == "admin"
-
-            # -- real admin has the full permission set, via a real role/grant --
-            roles = session.execute(
-                select(Role).join(UserRole, UserRole.role_id == Role.id).where(UserRole.user_id == admin.id)
-            ).scalars().all()
-            assert len(roles) == 1
-            granted_permissions = set(
-                session.execute(
-                    select(RolePermission.permission).where(RolePermission.role_id == roles[0].id)
-                ).scalars().all()
-            )
-            assert granted_permissions == set(ADMIN_PERMISSIONS)
-        finally:
-            session.close()
+        # (dropped above). healthcheck_main() (also called by run_install()) would
+        # already have raised if the schema it created weren't usable.
 
         env_contents_after_first_run = env_path.read_text()
 
-        install.run_install()  # second run must be a genuine no-op for secrets + admin
+        install.run_install()  # second run must be a genuine no-op for secrets
 
         # -- secrets untouched on second run (no regeneration) --
         assert env_path.read_text() == env_contents_after_first_run
-
-        session = sessionmaker(bind=engine)()
-        try:
-            users_second = session.execute(select(User)).scalars().all()
-            assert len(users_second) == 1
-            assert users_second[0].username == "admin"
-        finally:
-            session.close()
     finally:
         # Leave the shared Postgres database empty so other tests/tasks that reuse
-        # it are not tripped up by a stray admin user from this run.
+        # it are not tripped up by stray state from this run.
         _reset_schema(engine)
         engine.dispose()
