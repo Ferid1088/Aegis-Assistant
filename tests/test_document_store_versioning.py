@@ -179,3 +179,16 @@ def test_list_logical_documents_empty(tmp_path):
     finally:
         store.conn.close()
         os.unlink(db_path)
+
+
+def test_create_and_get_logical_document_with_title():
+    store, db_path = _store()
+    try:
+        doc = LogicalDocument(logical_doc_id="L1", source_identity="filesystem:/x.pdf", title="Employee Handbook")
+        store.create_logical_document(doc)
+        fetched = store.get_logical_document("L1")
+        assert fetched is not None
+        assert fetched.title == "Employee Handbook"
+    finally:
+        store.conn.close()
+        os.unlink(db_path)

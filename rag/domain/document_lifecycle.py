@@ -82,6 +82,7 @@ class LogicalDocument:
     logical_doc_id: str
     source_identity: str
     tenant_id: str = "default"
+    title: str | None = None
     department: str | None = None
     access_level: list[str] = field(default_factory=list)
     document_type: str | None = None

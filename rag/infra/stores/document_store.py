@@ -86,6 +86,7 @@ class SQLiteDocumentStore(DocumentStore):
             )
         """)
         self._ensure_column("logical_documents", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+        self._ensure_column("logical_documents", "title", "TEXT")
         self._ensure_column("document_versions", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
         self._ensure_column("document_versions", "updated_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
 
@@ -144,11 +145,11 @@ class SQLiteDocumentStore(DocumentStore):
     def create_logical_document(self, doc: LogicalDocument) -> None:
         self.conn.execute(
             """INSERT INTO logical_documents
-               (logical_doc_id, source_identity, tenant_id, department, access_level,
+               (logical_doc_id, source_identity, tenant_id, title, department, access_level,
                 document_type, project_id, phase_id, state, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                doc.logical_doc_id, doc.source_identity, doc.tenant_id, doc.department,
+                doc.logical_doc_id, doc.source_identity, doc.tenant_id, doc.title, doc.department,
                 json.dumps(doc.access_level), doc.document_type, doc.project_id, doc.phase_id,
                 doc.state.value, doc.created_at.isoformat(),
             ),
@@ -156,7 +157,7 @@ class SQLiteDocumentStore(DocumentStore):
 
     def get_logical_document(self, logical_doc_id: str) -> LogicalDocument | None:
         row = self.conn.execute(
-            """SELECT logical_doc_id, source_identity, tenant_id, department, access_level,
+            """SELECT logical_doc_id, source_identity, tenant_id, title, department, access_level,
                       document_type, project_id, phase_id, state, created_at
                FROM logical_documents WHERE logical_doc_id = ?""",
             (logical_doc_id,),
@@ -167,6 +168,7 @@ class SQLiteDocumentStore(DocumentStore):
             logical_doc_id=row["logical_doc_id"],
             source_identity=row["source_identity"],
             tenant_id=row["tenant_id"],
+            title=row["title"],
             department=row["department"],
             access_level=json.loads(row["access_level"]),
             document_type=row["document_type"],
@@ -176,9 +178,30 @@ class SQLiteDocumentStore(DocumentStore):
             created_at=self._parse_ts(row["created_at"]),
         )
 
+    def update_logical_document_metadata(
+        self, logical_doc_id: str, *, title: str | None = None, department: str | None = None,
+        document_type: str | None = None, access_level: list[str] | None = None,
+    ) -> None:
+        """Partial update -- None means "leave unchanged" for that field."""
+        current = self.get_logical_document(logical_doc_id)
+        if current is None:
+            raise ValueError(f"unknown logical_doc_id: {logical_doc_id}")
+        self.conn.execute(
+            """UPDATE logical_documents SET title = ?, department = ?, document_type = ?, access_level = ?
+               WHERE logical_doc_id = ?""",
+            (
+                title if title is not None else current.title,
+                department if department is not None else current.department,
+                document_type if document_type is not None else current.document_type,
+                json.dumps(access_level if access_level is not None else current.access_level),
+                logical_doc_id,
+            ),
+        )
+        self.conn.commit()
+
     def list_logical_documents(self) -> list[LogicalDocument]:
         rows = self.conn.execute(
-            """SELECT logical_doc_id, source_identity, tenant_id, department, access_level,
+            """SELECT logical_doc_id, source_identity, tenant_id, title, department, access_level,
                       document_type, project_id, phase_id, state, created_at
                FROM logical_documents ORDER BY logical_doc_id"""
         ).fetchall()
@@ -187,6 +210,7 @@ class SQLiteDocumentStore(DocumentStore):
                 logical_doc_id=row["logical_doc_id"],
                 source_identity=row["source_identity"],
                 tenant_id=row["tenant_id"],
+                title=row["title"],
                 department=row["department"],
                 access_level=json.loads(row["access_level"]),
                 document_type=row["document_type"],
