@@ -66,3 +66,11 @@ def require_permission(permission: str):
             raise HTTPException(status_code=403, detail=f"missing permission: {permission}")
         return current
     return _check
+
+
+def require_any_permission(*permissions: str):
+    def _check(current: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
+        if not any(p in current.auth_subject.permissions for p in permissions):
+            raise HTTPException(status_code=403, detail=f"missing permission: one of {', '.join(permissions)}")
+        return current
+    return _check

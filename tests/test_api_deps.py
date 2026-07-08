@@ -6,7 +6,7 @@ import jwt
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from rag.api.deps import get_current_user, require_permission
+from rag.api.deps import get_current_user, require_permission, require_any_permission
 from rag.config import settings
 from rag.crosscutting.security.tokens import ACCESS_ALGORITHM, create_access_token, create_mfa_pending_token
 from rag.infra.stores.sql.base import get_db
@@ -222,4 +222,37 @@ def test_require_permission_rejects_when_not_granted(db_session):
 
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.get("/needs-perm", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 403
+
+
+def test_require_any_permission_allows_when_any_granted(db_session):
+    user, session = _make_user_and_session(db_session)
+    _grant_permission(db_session, user, "documents:manage_versions")
+    token = create_access_token(str(user.id), str(session.id), user.token_version)
+
+    app = FastAPI()
+    app.dependency_overrides[get_db] = lambda: db_session
+
+    @app.get("/needs-any-perm")
+    def protected_route(current=Depends(require_any_permission("admin:departments", "documents:manage_versions"))):
+        return {"username": current.user.username}
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/needs-any-perm", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+
+
+def test_require_any_permission_rejects_when_none_granted(db_session):
+    user, session = _make_user_and_session(db_session)
+    token = create_access_token(str(user.id), str(session.id), user.token_version)
+
+    app = FastAPI()
+    app.dependency_overrides[get_db] = lambda: db_session
+
+    @app.get("/needs-any-perm")
+    def protected_route(current=Depends(require_any_permission("admin:departments", "documents:manage_versions"))):
+        return {"username": current.user.username}
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/needs-any-perm", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 403
