@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from rag.api.deps import AuthenticatedUser, require_permission
+from rag.api.deps import AuthenticatedUser, require_any_permission, require_permission
 from rag.api.schemas.admin import (
     AccessLevelCreate, AccessLevelResponse, DepartmentCreate, DepartmentResponse,
     DocumentTypeCreate, DocumentTypeResponse, RoleCreate, RoleGrantCreate,
@@ -32,7 +32,9 @@ def create_department(
 
 @router.get("/departments", response_model=list[DepartmentResponse])
 def list_departments(
-    current: AuthenticatedUser = Depends(require_permission("admin:departments")),
+    current: AuthenticatedUser = Depends(
+        require_any_permission("admin:departments", "documents:upload", "documents:manage_versions")
+    ),
     db: Session = Depends(get_db),
 ) -> list[DepartmentResponse]:
     depts = db.execute(select(Department)).scalars().all()
@@ -76,7 +78,9 @@ def create_access_level(
 @router.get("/departments/{department_id}/access-levels", response_model=list[AccessLevelResponse])
 def list_access_levels(
     department_id: uuid.UUID,
-    current: AuthenticatedUser = Depends(require_permission("admin:departments")),
+    current: AuthenticatedUser = Depends(
+        require_any_permission("admin:departments", "documents:upload", "documents:manage_versions")
+    ),
     db: Session = Depends(get_db),
 ) -> list[AccessLevelResponse]:
     dept = db.get(Department, department_id)
@@ -236,7 +240,9 @@ def create_document_type(
 
 @router.get("/document-types", response_model=list[DocumentTypeResponse])
 def list_document_types(
-    current: AuthenticatedUser = Depends(require_permission("admin:document_types")),
+    current: AuthenticatedUser = Depends(
+        require_any_permission("admin:document_types", "documents:upload", "documents:manage_versions")
+    ),
     db: Session = Depends(get_db),
 ) -> list[DocumentTypeResponse]:
     types = db.execute(select(DocumentType)).scalars().all()

@@ -212,3 +212,17 @@ def test_create_list_and_delete_document_type(client, db_session):
 
     resp = client.delete(f"/api/v1/admin/document-types/{dt_id}", headers=headers)
     assert resp.status_code == 204
+
+
+def test_list_departments_allows_documents_upload_permission(client, db_session):
+    _, token = _make_admin_user(db_session, permission="documents:upload")
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = client.get("/api/v1/admin/departments", headers=headers)
+    assert resp.status_code == 200
+
+
+def test_list_departments_still_rejects_unrelated_permission(client, db_session):
+    _, token = _make_admin_user(db_session, permission="admin:users")
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = client.get("/api/v1/admin/departments", headers=headers)
+    assert resp.status_code == 403

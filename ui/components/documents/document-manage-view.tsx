@@ -144,6 +144,7 @@ function EditMetadataForm({ docId, detail, onDone }: { docId: string; detail: Ra
     const [documentTypeId, setDocumentTypeId] = useState(detail.document_type_id ?? "");
     const [accessLevelIds, setAccessLevelIds] = useState<string[]>(detail.access_level_ids ?? []);
     const [pending, setPending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const { data: departments } = useApi<Department[]>("/admin/departments");
     const { data: documentTypes } = useApi<DocumentType[]>("/admin/document-types");
@@ -169,8 +170,9 @@ function EditMetadataForm({ docId, detail, onDone }: { docId: string; detail: Ra
 
     async function submit() {
         setPending(true);
+        setError(null);
         try {
-            await fetch(`/api/v1/documents/${docId}/metadata`, {
+            const res = await fetch(`/api/v1/documents/${docId}/metadata`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -178,7 +180,14 @@ function EditMetadataForm({ docId, detail, onDone }: { docId: string; detail: Ra
                     access_level_ids: accessLevelIds,
                 }),
             });
+            if (!res.ok) {
+                const detail = await res.text();
+                setError(detail || "Failed to save metadata.");
+                return;
+            }
             onDone();
+        } catch {
+            setError("Failed to save metadata.");
         } finally {
             setPending(false);
         }
@@ -237,10 +246,11 @@ function EditMetadataForm({ docId, detail, onDone }: { docId: string; detail: Ra
                     </div>
                 </div>
             </div>
-            <div className="mt-4">
+            <div className="mt-4 flex items-center gap-3">
                 <Button onClick={submit} disabled={pending || !title.trim() || !departmentId || !documentTypeId || accessLevelIds.length === 0}>
                     {pending ? "Saving…" : "Save metadata"}
                 </Button>
+                {error ? <span className="text-sm text-offline">{error}</span> : null}
             </div>
         </Card>
     );

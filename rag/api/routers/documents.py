@@ -96,19 +96,26 @@ def _get_document_or_404(store: SQLiteDocumentStore, logical_doc_id: str):
     return doc
 
 
+def _parse_id(value: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="malformed id") from exc
+
+
 def _validate_document_metadata(
     db: Session, department_id: str, document_type_id: str | None, access_level_ids: list[str],
 ) -> None:
-    dept = db.get(Department, uuid.UUID(department_id))
+    dept = db.get(Department, _parse_id(department_id))
     if dept is None:
         raise HTTPException(status_code=404, detail="department not found")
     if document_type_id is not None:
-        dtype = db.get(DocumentType, uuid.UUID(document_type_id))
+        dtype = db.get(DocumentType, _parse_id(document_type_id))
         if dtype is None:
             raise HTTPException(status_code=404, detail="document type not found")
     if not access_level_ids:
         raise HTTPException(status_code=400, detail="at least one access level is required")
-    level_uuids = [uuid.UUID(level_id) for level_id in access_level_ids]
+    level_uuids = [_parse_id(level_id) for level_id in access_level_ids]
     matched = db.execute(
         select(AccessLevel).where(AccessLevel.id.in_(level_uuids), AccessLevel.department_id == dept.id)
     ).scalars().all()
@@ -119,22 +126,37 @@ def _validate_document_metadata(
 def _resolve_department_name(db: Session, department_id: str | None) -> str | None:
     if not department_id:
         return None
-    dept = db.get(Department, uuid.UUID(department_id))
+    try:
+        dept_uuid = uuid.UUID(department_id)
+    except ValueError:
+        return "Unknown department"
+    dept = db.get(Department, dept_uuid)
     return dept.name if dept else "Unknown department"
 
 
 def _resolve_document_type_name(db: Session, document_type_id: str | None) -> str | None:
     if not document_type_id:
         return None
-    dtype = db.get(DocumentType, uuid.UUID(document_type_id))
+    try:
+        dtype_uuid = uuid.UUID(document_type_id)
+    except ValueError:
+        return "Unknown type"
+    dtype = db.get(DocumentType, dtype_uuid)
     return dtype.label if dtype else "Unknown type"
 
 
 def _resolve_access_level_names(db: Session, access_level_ids: list[str]) -> str | None:
     if not access_level_ids:
         return None
-    ids = [uuid.UUID(level_id) for level_id in access_level_ids]
-    levels = db.execute(select(AccessLevel).where(AccessLevel.id.in_(ids))).scalars().all()
+    ids = []
+    valid_ids = set()
+    for level_id in access_level_ids:
+        try:
+            ids.append(uuid.UUID(level_id))
+            valid_ids.add(level_id)
+        except ValueError:
+            continue
+    levels = db.execute(select(AccessLevel).where(AccessLevel.id.in_(ids))).scalars().all() if ids else []
     found = {str(lv.id): lv.label for lv in levels}
     return ", ".join(found.get(level_id, "Unknown access level") for level_id in access_level_ids)
 

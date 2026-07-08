@@ -376,6 +376,21 @@ def test_upload_with_access_level_from_wrong_department_400s(mock_task, client, 
 
 
 @patch("rag.api.routers.documents.run_ingestion")
+def test_upload_with_malformed_department_id_returns_4xx_not_500(mock_task, client, db_session):
+    _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
+    resp = client.post(
+        "/api/v1/documents",
+        files={"file": ("a.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        data={
+            "title": "Test", "department_id": "not-a-uuid",
+            "document_type_id": "also-not-a-uuid", "access_level_ids": ["nope"],
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code in (400, 404, 422)
+
+
+@patch("rag.api.routers.documents.run_ingestion")
 def test_upload_new_version_does_not_require_metadata(mock_task, client, db_session):
     """Uploading a new version of an EXISTING document doesn't need title/department/etc.
     (the logical document already has them; only Task 7's PATCH edits them). This needs a
