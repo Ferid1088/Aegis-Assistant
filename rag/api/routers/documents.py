@@ -13,6 +13,7 @@ from rag.api.schemas.documents import (
     JobStatusResponse,
     LogicalDocumentDetailResponse,
     LogicalDocumentResponse,
+    UpdateDocumentMetadataRequest,
     VersionResponse,
 )
 from rag.config import settings
@@ -96,14 +97,15 @@ def _get_document_or_404(store: SQLiteDocumentStore, logical_doc_id: str):
 
 
 def _validate_document_metadata(
-    db: Session, department_id: str, document_type_id: str, access_level_ids: list[str],
+    db: Session, department_id: str, document_type_id: str | None, access_level_ids: list[str],
 ) -> None:
     dept = db.get(Department, uuid.UUID(department_id))
     if dept is None:
         raise HTTPException(status_code=404, detail="department not found")
-    dtype = db.get(DocumentType, uuid.UUID(document_type_id))
-    if dtype is None:
-        raise HTTPException(status_code=404, detail="document type not found")
+    if document_type_id is not None:
+        dtype = db.get(DocumentType, uuid.UUID(document_type_id))
+        if dtype is None:
+            raise HTTPException(status_code=404, detail="document type not found")
     if not access_level_ids:
         raise HTTPException(status_code=400, detail="at least one access level is required")
     level_uuids = [uuid.UUID(level_id) for level_id in access_level_ids]
@@ -267,6 +269,32 @@ def activate_document_version(
         target_version_id = match.version_id
     store.activate_version(target_version_id)
     return _document_response(db, store, doc, can_manage=True)
+
+
+@router.patch("/{logical_doc_id}/metadata", response_model=LogicalDocumentDetailResponse)
+def update_document_metadata(
+    logical_doc_id: str,
+    body: UpdateDocumentMetadataRequest,
+    current: AuthenticatedUser = Depends(require_permission("documents:manage_versions")),
+    db: Session = Depends(get_db),
+) -> LogicalDocumentDetailResponse:
+    store = SQLiteDocumentStore()
+    doc = _get_document_or_404(store, logical_doc_id)
+    if not _doc_allowed(doc, current):
+        raise HTTPException(status_code=404, detail="document not found")
+
+    effective_department_id = body.department_id if body.department_id is not None else doc.department
+    effective_document_type_id = body.document_type_id if body.document_type_id is not None else doc.document_type
+    effective_access_level_ids = body.access_level_ids if body.access_level_ids is not None else doc.access_level
+    if effective_department_id:
+        _validate_document_metadata(db, effective_department_id, effective_document_type_id, effective_access_level_ids)
+
+    store.update_logical_document_metadata(
+        logical_doc_id, title=body.title, department=body.department_id,
+        document_type=body.document_type_id, access_level=body.access_level_ids,
+    )
+    updated = _get_document_or_404(store, logical_doc_id)
+    return _document_response(db, store, updated, can_manage=True)
 
 
 @router.get("/{logical_doc_id}/render")

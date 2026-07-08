@@ -404,3 +404,78 @@ def test_upload_new_version_does_not_require_metadata(mock_task, client, db_sess
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 202, resp.text
+
+
+def test_patch_metadata_updates_title_and_department(client, db_session):
+    from rag.domain.document_lifecycle import LogicalDocument
+    from rag.infra.stores.document_store import SQLiteDocumentStore
+    from rag import config
+
+    dept, dtype, level = _make_metadata_rows(db_session)
+    other_dept = Department(name="Legal")
+    db_session.add(other_dept)
+    db_session.flush()
+    other_level = AccessLevel(department_id=other_dept.id, label="Internal", rank=1)
+    db_session.add(other_level)
+    db_session.commit()
+
+    store = SQLiteDocumentStore(config.settings.sqlite_path)
+    store.create_logical_document(LogicalDocument(
+        logical_doc_id="doc-3", source_identity="filesystem:/z.pdf", title="Old title",
+        department=str(dept.id), document_type=str(dtype.id), access_level=[str(level.id)],
+    ))
+    store.create_version("doc-3", content_hash="h3", filename="z.pdf", num_pages=1)
+
+    _, token = _make_user_with_permission(db_session, "alice", "documents:manage_versions")
+    resp = client.patch(
+        "/api/v1/documents/doc-3/metadata",
+        json={"title": "New title", "department_id": str(other_dept.id), "access_level_ids": [str(other_level.id)]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["title"] == "New title"
+    assert resp.json()["department"] == "Legal"
+
+    refetched = client.get("/api/v1/documents/doc-3", headers={"Authorization": f"Bearer {token}"})
+    assert refetched.json()["title"] == "New title"
+
+
+def test_patch_metadata_requires_permission(client, db_session):
+    from rag.domain.document_lifecycle import LogicalDocument
+    from rag.infra.stores.document_store import SQLiteDocumentStore
+    from rag import config
+
+    store = SQLiteDocumentStore(config.settings.sqlite_path)
+    store.create_logical_document(LogicalDocument(logical_doc_id="doc-4", source_identity="filesystem:/w.pdf"))
+
+    _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
+    resp = client.patch(
+        "/api/v1/documents/doc-4/metadata", json={"title": "Nope"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+def test_patch_metadata_rejects_access_level_from_wrong_department(client, db_session):
+    from rag.domain.document_lifecycle import LogicalDocument
+    from rag.infra.stores.document_store import SQLiteDocumentStore
+    from rag import config
+
+    dept, dtype, level = _make_metadata_rows(db_session)
+    other_dept = Department(name="Legal")
+    db_session.add(other_dept)
+    db_session.commit()
+
+    store = SQLiteDocumentStore(config.settings.sqlite_path)
+    store.create_logical_document(LogicalDocument(
+        logical_doc_id="doc-5", source_identity="filesystem:/v.pdf",
+        department=str(dept.id), access_level=[str(level.id)],
+    ))
+
+    _, token = _make_user_with_permission(db_session, "alice", "documents:manage_versions")
+    resp = client.patch(
+        "/api/v1/documents/doc-5/metadata",
+        json={"department_id": str(other_dept.id)},  # access_level_ids NOT updated -> now mismatched
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 400
