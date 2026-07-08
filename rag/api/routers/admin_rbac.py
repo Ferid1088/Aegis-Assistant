@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from rag.api.deps import AuthenticatedUser, require_permission
+from rag.api.deps import AuthenticatedUser, require_permission, require_any_permission
 from rag.api.schemas.admin import (
     AccessLevelCreate, AccessLevelResponse, DepartmentCreate, DepartmentResponse,
     DocumentTypeCreate, DocumentTypeResponse, RoleCreate, RoleGrantCreate,
@@ -32,7 +32,7 @@ def create_department(
 
 @router.get("/departments", response_model=list[DepartmentResponse])
 def list_departments(
-    current: AuthenticatedUser = Depends(require_permission("admin:departments")),
+    current: AuthenticatedUser = Depends(require_any_permission("admin:departments", "documents:manage_versions")),
     db: Session = Depends(get_db),
 ) -> list[DepartmentResponse]:
     depts = db.execute(select(Department)).scalars().all()
@@ -85,6 +85,22 @@ def delete_access_level(
     db.delete(level)
     db.commit()
     record_admin_change(str(current.user.id), "access_level_deleted", f"access_level:{access_level_id}")
+
+
+@router.get("/departments/{department_id}/access-levels", response_model=list[AccessLevelResponse])
+def list_access_levels(
+    department_id: uuid.UUID,
+    current: AuthenticatedUser = Depends(require_any_permission("admin:departments", "documents:manage_versions")),
+    db: Session = Depends(get_db),
+) -> list[AccessLevelResponse]:
+    dept = db.get(Department, department_id)
+    if dept is None:
+        raise HTTPException(status_code=404, detail="department not found")
+    levels = db.execute(select(AccessLevel).where(AccessLevel.department_id == department_id)).scalars().all()
+    return [
+        AccessLevelResponse(id=str(level.id), department_id=str(department_id), label=level.label, rank=level.rank)
+        for level in levels
+    ]
 
 
 @router.post("/roles", response_model=RoleResponse, status_code=201)
@@ -223,7 +239,7 @@ def create_document_type(
 
 @router.get("/document-types", response_model=list[DocumentTypeResponse])
 def list_document_types(
-    current: AuthenticatedUser = Depends(require_permission("admin:document_types")),
+    current: AuthenticatedUser = Depends(require_any_permission("admin:document_types", "documents:manage_versions")),
     db: Session = Depends(get_db),
 ) -> list[DocumentTypeResponse]:
     types = db.execute(select(DocumentType)).scalars().all()

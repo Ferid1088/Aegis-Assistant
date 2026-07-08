@@ -189,3 +189,67 @@ def test_create_list_and_delete_document_type(client, db_session):
 
     resp = client.delete(f"/api/v1/admin/document-types/{dt_id}", headers=headers)
     assert resp.status_code == 204
+
+
+def test_list_departments_allowed_with_manage_versions_permission(client, db_session):
+    _, token = _make_admin_user(db_session, permission="documents:manage_versions")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.get("/api/v1/admin/departments", headers=headers)
+    assert resp.status_code == 200
+
+
+def test_list_document_types_allowed_with_manage_versions_permission(client, db_session):
+    _, token = _make_admin_user(db_session, permission="documents:manage_versions")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.get("/api/v1/admin/document-types", headers=headers)
+    assert resp.status_code == 200
+
+
+def test_create_department_still_rejects_manage_versions_only(client, db_session):
+    _, token = _make_admin_user(db_session, permission="documents:manage_versions")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post("/api/v1/admin/departments", json={"name": "HR"}, headers=headers)
+    assert resp.status_code == 403
+
+
+def test_list_access_levels_for_department(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    dept_id = client.post("/api/v1/admin/departments", json={"name": "Finance"}, headers=headers).json()["id"]
+    client.post(
+        f"/api/v1/admin/departments/{dept_id}/access-levels", json={"label": "FIN_L1", "rank": 1}, headers=headers,
+    )
+    client.post(
+        f"/api/v1/admin/departments/{dept_id}/access-levels", json={"label": "FIN_L2", "rank": 2}, headers=headers,
+    )
+
+    resp = client.get(f"/api/v1/admin/departments/{dept_id}/access-levels", headers=headers)
+    assert resp.status_code == 200
+    labels = {lvl["label"] for lvl in resp.json()}
+    assert labels == {"FIN_L1", "FIN_L2"}
+
+
+def test_list_access_levels_allowed_with_manage_versions_permission(client, db_session):
+    _, admin_token = _make_admin_user(db_session)
+    dept_id = client.post(
+        "/api/v1/admin/departments", json={"name": "Ops"}, headers={"Authorization": f"Bearer {admin_token}"},
+    ).json()["id"]
+
+    _, token = _make_admin_user(db_session, permission="documents:manage_versions")
+    resp = client.get(
+        f"/api/v1/admin/departments/{dept_id}/access-levels", headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+
+
+def test_list_access_levels_unknown_department_404s(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+    fake_id = "00000000-0000-0000-0000-000000000000"
+
+    resp = client.get(f"/api/v1/admin/departments/{fake_id}/access-levels", headers=headers)
+    assert resp.status_code == 404
