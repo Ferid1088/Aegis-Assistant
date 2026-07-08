@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user, require_permission
@@ -22,6 +23,7 @@ from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import ingestion_job_service
 from rag.infra.stores.document_store import SQLiteDocumentStore
 from rag.infra.stores.sql.base import get_db
+from rag.infra.stores.sql.models import AccessLevel, Department, DocumentType
 from rag.worker.tasks import run_ingestion
 
 router = APIRouter()
@@ -90,12 +92,35 @@ def _get_document_or_404(store: SQLiteDocumentStore, logical_doc_id: str):
     return doc
 
 
+def _validate_document_metadata(
+    db: Session, department_id: str, document_type_id: str, access_level_ids: list[str],
+) -> None:
+    dept = db.get(Department, uuid.UUID(department_id))
+    if dept is None:
+        raise HTTPException(status_code=404, detail="department not found")
+    dtype = db.get(DocumentType, uuid.UUID(document_type_id))
+    if dtype is None:
+        raise HTTPException(status_code=404, detail="document type not found")
+    if not access_level_ids:
+        raise HTTPException(status_code=400, detail="at least one access level is required")
+    level_uuids = [uuid.UUID(level_id) for level_id in access_level_ids]
+    matched = db.execute(
+        select(AccessLevel).where(AccessLevel.id.in_(level_uuids), AccessLevel.department_id == dept.id)
+    ).scalars().all()
+    if len(matched) != len(level_uuids):
+        raise HTTPException(status_code=400, detail="one or more access levels not found for this department")
+
+
 @router.post("", response_model=JobResponse, status_code=202)
 @limiter.limit("5/minute")
 def upload_document(
     request: Request,
     file: UploadFile,
     logical_doc_id: str | None = Form(default=None),
+    title: str | None = Form(default=None),
+    department_id: str | None = Form(default=None),
+    document_type_id: str | None = Form(default=None),
+    access_level_ids: list[str] = Form(default=[]),
     current: AuthenticatedUser = Depends(require_permission("documents:upload")),
     db: Session = Depends(get_db),
 ) -> JobResponse:
@@ -105,6 +130,11 @@ def upload_document(
     contents = file.file.read()
     if len(contents) > settings.max_upload_bytes:
         raise HTTPException(status_code=413, detail="file exceeds max upload size")
+
+    if logical_doc_id is None:
+        if not title or not department_id or not document_type_id:
+            raise HTTPException(status_code=422, detail="title, department_id, document_type_id, and access_level_ids are required for a new document")
+        _validate_document_metadata(db, department_id, document_type_id, access_level_ids)
 
     if not check_and_increment_queued_ingestion(str(current.user.id)):
         raise HTTPException(status_code=429, detail="too many queued ingestion jobs, wait for one to finish")
@@ -129,6 +159,10 @@ def upload_document(
             db, uploaded_by=current.user.id, filename=file.filename or "upload.pdf",
             staged_path=str(staged_path), doc_version=None,
             target_logical_doc_id=logical_doc_id,
+            title=title if logical_doc_id is None else None,
+            department_id=department_id if logical_doc_id is None else None,
+            document_type_id=document_type_id if logical_doc_id is None else None,
+            access_level_ids=access_level_ids if logical_doc_id is None else None,
         )
         run_ingestion.delay(str(job.id))
     except Exception:
