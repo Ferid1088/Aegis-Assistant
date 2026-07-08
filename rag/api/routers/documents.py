@@ -1,12 +1,18 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user, require_permission
 from rag.api.schemas.documents import (
-    JobResponse, JobStatusResponse, LogicalDocumentDetailResponse, LogicalDocumentResponse, VersionResponse,
+    ActivateVersionRequest,
+    JobResponse,
+    JobStatusResponse,
+    LogicalDocumentDetailResponse,
+    LogicalDocumentResponse,
+    VersionResponse,
 )
 from rag.config import settings
 from rag.crosscutting.security.ingestion_limits import (
@@ -28,11 +34,68 @@ def _job_to_response(job) -> JobStatusResponse:
     )
 
 
+def _doc_allowed(doc, current: AuthenticatedUser) -> bool:
+    if not settings.acl_enforce:
+        return True
+    user_levels = set(current.auth_subject.effective_levels)
+    doc_levels = set(doc.access_level or [])
+    return bool(user_levels and doc_levels and user_levels & doc_levels)
+
+
+def _version_response(version) -> VersionResponse:
+    return VersionResponse(
+        version_id=version.version_id,
+        version_no=version.version_no,
+        filename=version.filename,
+        num_pages=version.num_pages,
+        is_active=version.is_active,
+        processing_state=version.processing_state.value,
+        uploaded_at=version.created_at.isoformat(),
+        file_type=Path(version.filename).suffix.lstrip(".").lower() or "pdf",
+    )
+
+
+def _document_response(store: SQLiteDocumentStore, doc, *, can_manage: bool | None = None):
+    versions = store.get_versions(doc.logical_doc_id)
+    active = next((v for v in versions if v.is_active), versions[-1] if versions else None)
+    filename = active.filename if active else Path(doc.source_identity).name
+    payload = dict(
+        id=doc.logical_doc_id,
+        title=Path(filename).stem,
+        department=doc.department,
+        access_level=", ".join(doc.access_level) if doc.access_level else None,
+        document_type=doc.document_type,
+        project=store.get_project_name(doc.project_id),
+        phase=store.get_phase_name(doc.phase_id),
+        upload_date=(active.created_at if active else doc.created_at).isoformat(),
+        last_modified=versions[-1].updated_at.isoformat() if versions else None,
+        active_version_no=active.version_no if active else 0,
+        version_count=len(versions),
+        file_type=Path(filename).suffix.lstrip(".").lower() or "pdf",
+        state=doc.state.value,
+    )
+    if can_manage is None:
+        return LogicalDocumentResponse(**payload)
+    return LogicalDocumentDetailResponse(
+        **payload,
+        versions=[_version_response(v) for v in versions],
+        can_manage=can_manage,
+    )
+
+
+def _get_document_or_404(store: SQLiteDocumentStore, logical_doc_id: str):
+    doc = store.get_logical_document(logical_doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="document not found")
+    return doc
+
+
 @router.post("", response_model=JobResponse, status_code=202)
 @limiter.limit("5/minute")
 def upload_document(
     request: Request,
     file: UploadFile,
+    logical_doc_id: str | None = Form(default=None),
     current: AuthenticatedUser = Depends(require_permission("documents:upload")),
     db: Session = Depends(get_db),
 ) -> JobResponse:
@@ -54,9 +117,18 @@ def upload_document(
     try:
         staged_path.write_bytes(contents)
 
+        if logical_doc_id is not None:
+            store = SQLiteDocumentStore()
+            target = _get_document_or_404(store, logical_doc_id)
+            if not _doc_allowed(target, current):
+                raise HTTPException(status_code=403, detail="not authorized to manage this document")
+            if "documents:manage_versions" not in current.auth_subject.permissions:
+                raise HTTPException(status_code=403, detail="missing permission: documents:manage_versions")
+
         job = ingestion_job_service.create_job(
             db, uploaded_by=current.user.id, filename=file.filename or "upload.pdf",
             staged_path=str(staged_path), doc_version=None,
+            target_logical_doc_id=logical_doc_id,
         )
         run_ingestion.delay(str(job.id))
     except Exception:
@@ -90,11 +162,9 @@ def list_documents(
 ) -> list[LogicalDocumentResponse]:
     store = SQLiteDocumentStore()
     return [
-        LogicalDocumentResponse(
-            logical_doc_id=d.logical_doc_id, source_identity=d.source_identity,
-            document_type=d.document_type, state=d.state.value,
-        )
+        _document_response(store, d)
         for d in store.list_logical_documents()
+        if _doc_allowed(d, current)
     ]
 
 
@@ -104,19 +174,59 @@ def get_document(
     current: AuthenticatedUser = Depends(get_current_user),
 ) -> LogicalDocumentDetailResponse:
     store = SQLiteDocumentStore()
-    doc = store.get_logical_document(logical_doc_id)
-    if doc is None:
+    doc = _get_document_or_404(store, logical_doc_id)
+    if not _doc_allowed(doc, current):
+        raise HTTPException(status_code=404, detail="document not found")
+
+    return _document_response(
+        store,
+        doc,
+        can_manage="documents:manage_versions" in current.auth_subject.permissions,
+    )
+
+
+@router.patch("/{logical_doc_id}/versions/{version_id}", response_model=LogicalDocumentDetailResponse)
+def activate_document_version(
+    logical_doc_id: str,
+    version_id: str,
+    body: ActivateVersionRequest,
+    current: AuthenticatedUser = Depends(require_permission("documents:manage_versions")),
+) -> LogicalDocumentDetailResponse:
+    store = SQLiteDocumentStore()
+    doc = _get_document_or_404(store, logical_doc_id)
+    if not _doc_allowed(doc, current):
+        raise HTTPException(status_code=404, detail="document not found")
+
+    target_version_id = body.version_id or version_id
+    if body.version_no is not None:
+        match = next((v for v in store.get_versions(logical_doc_id) if v.version_no == body.version_no), None)
+        if match is None:
+            raise HTTPException(status_code=404, detail="version not found")
+        target_version_id = match.version_id
+    store.activate_version(target_version_id)
+    return _document_response(store, doc, can_manage=True)
+
+
+@router.get("/{logical_doc_id}/render")
+def render_document_page(
+    logical_doc_id: str,
+    v: int | None = None,
+    page: int = 1,
+    current: AuthenticatedUser = Depends(get_current_user),
+):
+    store = SQLiteDocumentStore()
+    doc = _get_document_or_404(store, logical_doc_id)
+    if not _doc_allowed(doc, current):
         raise HTTPException(status_code=404, detail="document not found")
 
     versions = store.get_versions(logical_doc_id)
-    return LogicalDocumentDetailResponse(
-        logical_doc_id=doc.logical_doc_id, source_identity=doc.source_identity,
-        document_type=doc.document_type, state=doc.state.value,
-        versions=[
-            VersionResponse(
-                version_id=v.version_id, version_no=v.version_no, filename=v.filename,
-                num_pages=v.num_pages, is_active=v.is_active, processing_state=v.processing_state.value,
-            )
-            for v in versions
-        ],
-    )
+    version = next((item for item in versions if item.version_no == v), None) if v is not None else None
+    if version is None:
+        version = next((item for item in versions if item.is_active), versions[-1] if versions else None)
+    if version is None:
+        raise HTTPException(status_code=404, detail="version not found")
+
+    image_path = Path(settings.document_pages_dir) / version.version_id / f"page_{page}.png"
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="rendered page not found")
+    return FileResponse(image_path, media_type="image/png")

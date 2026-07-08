@@ -65,6 +65,7 @@ export interface LogicalDocument {
   activeVersionNo: number;
   versionCount: number;
   fileType: string;
+  state?: string;
 }
 
 export interface SearchHit {

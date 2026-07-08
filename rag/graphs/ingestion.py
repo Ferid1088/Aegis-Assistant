@@ -291,11 +291,6 @@ def convert(state: IngestionState) -> dict:
         print(f"⏭️  {file_path.name}: skipped (duplicate)")
         return {"status": "skipped (duplicate)"}
 
-    docling_path, _ = convert_pdf(file_path)
-
-    doc = DoclingDocument.load_from_json(docling_path)
-    num_pages = len(doc.pages)
-
     doc_id = str(uuid.uuid4())
 
     old_doc_id = doc_store.find_current_by_filename(file_path.name)
@@ -304,19 +299,37 @@ def convert(state: IngestionState) -> dict:
         print(f"🔄 Superseded old version (doc_id={old_doc_id[:8]}…)")
 
     # ── 02.1: logical document / version split (reserved seam, dual-write) ──
-    source_identity = resolve_identity("filesystem", path=str(file_path))
-    logical_doc_id = doc_store.find_logical_by_identity(source_identity)
-    if logical_doc_id is None:
-        logical_doc_id = str(uuid.uuid4())
-        doc_store.create_logical_document(
-            LogicalDocument(logical_doc_id=logical_doc_id, source_identity=source_identity)
-        )
-    version = doc_store.create_version(
+    target_logical_doc_id = state.get("target_logical_doc_id")
+    if target_logical_doc_id:
+        logical_doc_id = target_logical_doc_id
+    else:
+        source_identity = resolve_identity("filesystem", path=str(file_path))
+        logical_doc_id = doc_store.find_logical_by_identity(source_identity)
+        if logical_doc_id is None:
+            logical_doc_id = str(uuid.uuid4())
+            doc_store.create_logical_document(
+                LogicalDocument(logical_doc_id=logical_doc_id, source_identity=source_identity)
+            )
+
+    # We need the allocated version_id before conversion so the page-image export
+    # can be written to a permanent, per-version directory instead of the staged
+    # upload scratch area that gets cleaned up by the worker.
+    provisional_version = doc_store.create_version(
         logical_doc_id=logical_doc_id,
         content_hash=content_hash,
         filename=file_path.name,
-        num_pages=num_pages,
+        num_pages=0,
     )
+    render_dir = Path(settings.document_pages_dir) / provisional_version.version_id
+    docling_path, _ = convert_pdf(file_path, render_dir=render_dir)
+
+    doc = DoclingDocument.load_from_json(docling_path)
+    num_pages = len(doc.pages)
+    doc_store.conn.execute(
+        "UPDATE document_versions SET num_pages = ?, updated_at = CURRENT_TIMESTAMP WHERE version_id = ?",
+        (num_pages, provisional_version.version_id),
+    )
+    version = doc_store.get_versions(logical_doc_id)[-1]
     doc_store.set_processing_state(version.version_id, ProcessingState.CONVERTING)
 
     meta = DocumentMeta(

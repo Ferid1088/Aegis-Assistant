@@ -6,7 +6,12 @@ Metadata lives on the LOGICAL document; versions are instances (02.1 §1).
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class LogicalDocumentState(str, Enum):
@@ -61,6 +66,8 @@ class DocumentVersion:
     num_pages: int = 0
     is_active: bool = True
     processing_state: ProcessingState = ProcessingState.QUEUED
+    created_at: datetime = field(default_factory=_now)
+    updated_at: datetime = field(default_factory=_now)
 
 
 def transition_processing(version: DocumentVersion, target: ProcessingState) -> tuple[bool, str]:
@@ -81,6 +88,7 @@ class LogicalDocument:
     project_id: str | None = None
     phase_id: str | None = None
     state: LogicalDocumentState = LogicalDocumentState.ACTIVE
+    created_at: datetime = field(default_factory=_now)
 
 
 def resolve_identity(source_type: str, **kwargs: str) -> str:

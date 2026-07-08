@@ -50,7 +50,8 @@ class SQLiteDocumentStore(DocumentStore):
                 document_type   TEXT,
                 project_id      TEXT,
                 phase_id        TEXT,
-                state           TEXT NOT NULL DEFAULT 'active'
+                state           TEXT NOT NULL DEFAULT 'active',
+                created_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """)
         self.conn.execute("""
@@ -63,6 +64,8 @@ class SQLiteDocumentStore(DocumentStore):
                 num_pages         INTEGER NOT NULL DEFAULT 0,
                 is_active         INTEGER NOT NULL DEFAULT 1,
                 processing_state  TEXT NOT NULL DEFAULT 'queued',
+                created_at        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(logical_doc_id, version_no)
             )
         """)
@@ -82,6 +85,9 @@ class SQLiteDocumentStore(DocumentStore):
                 default_metadata TEXT NOT NULL DEFAULT '{}'
             )
         """)
+        self._ensure_column("logical_documents", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+        self._ensure_column("document_versions", "created_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+        self._ensure_column("document_versions", "updated_at", "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
 
     # ── original 02 flow — unchanged behavior ─────────────────────────────
 
@@ -139,19 +145,19 @@ class SQLiteDocumentStore(DocumentStore):
         self.conn.execute(
             """INSERT INTO logical_documents
                (logical_doc_id, source_identity, tenant_id, department, access_level,
-                document_type, project_id, phase_id, state)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                document_type, project_id, phase_id, state, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 doc.logical_doc_id, doc.source_identity, doc.tenant_id, doc.department,
                 json.dumps(doc.access_level), doc.document_type, doc.project_id, doc.phase_id,
-                doc.state.value,
+                doc.state.value, doc.created_at.isoformat(),
             ),
         )
 
     def get_logical_document(self, logical_doc_id: str) -> LogicalDocument | None:
         row = self.conn.execute(
             """SELECT logical_doc_id, source_identity, tenant_id, department, access_level,
-                      document_type, project_id, phase_id, state
+                      document_type, project_id, phase_id, state, created_at
                FROM logical_documents WHERE logical_doc_id = ?""",
             (logical_doc_id,),
         ).fetchone()
@@ -167,12 +173,13 @@ class SQLiteDocumentStore(DocumentStore):
             project_id=row["project_id"],
             phase_id=row["phase_id"],
             state=LogicalDocumentState(row["state"]),
+            created_at=self._parse_ts(row["created_at"]),
         )
 
     def list_logical_documents(self) -> list[LogicalDocument]:
         rows = self.conn.execute(
             """SELECT logical_doc_id, source_identity, tenant_id, department, access_level,
-                      document_type, project_id, phase_id, state
+                      document_type, project_id, phase_id, state, created_at
                FROM logical_documents ORDER BY logical_doc_id"""
         ).fetchall()
         return [
@@ -186,6 +193,7 @@ class SQLiteDocumentStore(DocumentStore):
                 project_id=row["project_id"],
                 phase_id=row["phase_id"],
                 state=LogicalDocumentState(row["state"]),
+                created_at=self._parse_ts(row["created_at"]),
             )
             for row in rows
         ]
@@ -210,8 +218,8 @@ class SQLiteDocumentStore(DocumentStore):
                 self.conn.execute(
                     """INSERT INTO document_versions
                        (version_id, logical_doc_id, version_no, content_hash, filename,
-                        num_pages, is_active, processing_state)
-                       VALUES (?, ?, ?, ?, ?, ?, 1, ?)""",
+                        num_pages, is_active, processing_state, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)""",
                     (
                         version_id, logical_doc_id, version_no, content_hash, filename,
                         num_pages, ProcessingState.QUEUED.value,
@@ -240,11 +248,11 @@ class SQLiteDocumentStore(DocumentStore):
         logical_doc_id = row["logical_doc_id"]
         self.conn.execute("BEGIN IMMEDIATE")
         self.conn.execute(
-            "UPDATE document_versions SET is_active = 0 WHERE logical_doc_id = ?",
+            "UPDATE document_versions SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE logical_doc_id = ?",
             (logical_doc_id,),
         )
         self.conn.execute(
-            "UPDATE document_versions SET is_active = 1, processing_state = ? WHERE version_id = ?",
+            "UPDATE document_versions SET is_active = 1, processing_state = ?, updated_at = CURRENT_TIMESTAMP WHERE version_id = ?",
             (ProcessingState.ACTIVE.value, version_id),
         )
         self.conn.commit()
@@ -252,7 +260,7 @@ class SQLiteDocumentStore(DocumentStore):
     def get_versions(self, logical_doc_id: str) -> list[DocumentVersion]:
         rows = self.conn.execute(
             """SELECT version_id, logical_doc_id, version_no, content_hash, filename,
-                      num_pages, is_active, processing_state
+                      num_pages, is_active, processing_state, created_at, updated_at
                FROM document_versions WHERE logical_doc_id = ? ORDER BY version_no""",
             (logical_doc_id,),
         ).fetchall()
@@ -263,12 +271,55 @@ class SQLiteDocumentStore(DocumentStore):
                 filename=r["filename"], num_pages=r["num_pages"],
                 is_active=bool(r["is_active"]),
                 processing_state=ProcessingState(r["processing_state"]),
+                created_at=self._parse_ts(r["created_at"]),
+                updated_at=self._parse_ts(r["updated_at"]),
             )
             for r in rows
         ]
 
     def set_processing_state(self, version_id: str, state: ProcessingState) -> None:
         self.conn.execute(
-            "UPDATE document_versions SET processing_state = ? WHERE version_id = ?",
+            "UPDATE document_versions SET processing_state = ?, updated_at = CURRENT_TIMESTAMP WHERE version_id = ?",
             (state.value, version_id),
         )
+
+    def update_version_pages(self, version_id: str, num_pages: int) -> None:
+        self.conn.execute(
+            "UPDATE document_versions SET num_pages = ?, updated_at = CURRENT_TIMESTAMP WHERE version_id = ?",
+            (num_pages, version_id),
+        )
+
+    def get_project_name(self, project_id: str | None) -> str | None:
+        if not project_id:
+            return None
+        row = self.conn.execute(
+            "SELECT name FROM projects WHERE project_id = ?",
+            (project_id,),
+        ).fetchone()
+        return row["name"] if row else None
+
+    def get_phase_name(self, phase_id: str | None) -> str | None:
+        if not phase_id:
+            return None
+        row = self.conn.execute(
+            "SELECT name FROM phases WHERE phase_id = ?",
+            (phase_id,),
+        ).fetchone()
+        return row["name"] if row else None
+
+    @staticmethod
+    def _parse_ts(value: str | None):
+        from datetime import datetime, timezone
+
+        if not value:
+            return datetime.now(timezone.utc)
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.strptime(value, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+
+    def _ensure_column(self, table: str, column: str, ddl: str) -> None:
+        rows = self.conn.execute(f"PRAGMA table_info({table})").fetchall()
+        if any(row[1] == column for row in rows):
+            return
+        self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")

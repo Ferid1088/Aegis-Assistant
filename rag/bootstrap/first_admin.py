@@ -9,7 +9,8 @@ from rag.storage.sql.models import Role, RolePermission, User, UserRole
 
 ADMIN_PERMISSIONS = [
     "admin:audit", "admin:conversations", "admin:departments", "admin:document_types",
-    "admin:documents", "admin:roles", "admin:users", "documents:upload",
+    "admin:documents", "admin:roles", "admin:sources", "admin:users",
+    "documents:manage_versions", "documents:upload",
 ]
 
 

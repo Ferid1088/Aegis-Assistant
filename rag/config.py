@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     qdrant_url: str = ""
     sqlite_path: str = "./data/documents.db"
     upload_dir: str = "./data/uploads"
+    document_pages_dir: str = "./data/document_pages"
     max_upload_bytes: int = 100 * 1024 * 1024  # 100 MB
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"

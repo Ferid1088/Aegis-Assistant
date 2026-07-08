@@ -1,13 +1,21 @@
 services:
   neo4j:
+    restart: unless-stopped
     image: neo4j:5-community
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_server_memory_heap_max__size: 512M
     volumes:
       - ./data/neo4j:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   postgres:
+    restart: unless-stopped
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
@@ -16,8 +24,15 @@ services:
     ports: ["127.0.0.1:5432:5432"]
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   pgbouncer:
+    restart: unless-stopped
     image: edoburu/pgbouncer:latest
     environment:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/appliance
@@ -41,14 +56,28 @@ services:
       DEFAULT_POOL_SIZE: "${PGBOUNCER_POOL_SIZE:-20}"
     depends_on:
       - postgres
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   qdrant:
+    restart: unless-stopped
     image: qdrant/qdrant:latest
     ports: ["127.0.0.1:6333:6333"]
     volumes:
       - ./data/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   redis:
+    restart: unless-stopped
     image: redis:7-alpine
     # Loopback-only, matching postgres/qdrant's existing convention -- needed
     # so install.py's own host-side healthcheck (check_redis(), Phase 8.10b)
@@ -56,8 +85,15 @@ services:
     ports: ["127.0.0.1:6379:6379"]
     volumes:
       - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   vllm:
+    restart: unless-stopped
     image: vllm/vllm-openai:latest
     # Excluded from a plain `docker compose up -d` -- only started via
     # `docker compose --profile gpu up -d vllm` on a GPU-equipped host.
@@ -81,8 +117,15 @@ services:
       # Matches vLLM's own documented Docker usage: the default HuggingFace
       # cache path inside the official image is /root/.cache/huggingface.
       - vllm_models:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
 
   worker:
+    restart: unless-stopped
     build: .
     image: rag-appliance-worker:latest
     command: uv run celery -A rag.worker.celery_app worker --loglevel=info --concurrency=2
@@ -140,15 +183,26 @@ services:
     tmpfs:
       - /tmp
     depends_on:
-      - redis
-      - postgres
-      - pgbouncer
-      - qdrant
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
       - hf_models:/models/hf
+    healthcheck:
+      test: ["CMD-SHELL", "uv run celery -A rag.worker.celery_app inspect ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   app:
+    restart: unless-stopped
     build: .
     image: rag-appliance-app:latest
     command: uv run uvicorn rag.api.main:create_app --factory --host 0.0.0.0 --port 8000
@@ -193,24 +247,43 @@ services:
     tmpfs:
       - /tmp
     depends_on:
-      - redis
-      - postgres
-      - pgbouncer
-      - qdrant
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
       - hf_models:/models/hf
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u, sys; sys.exit(0 if u.urlopen('http://localhost:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   nginx:
+    restart: unless-stopped
     image: nginx:latest
     ports: ["80:80", "443:443"]
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./certs:/etc/nginx/certs:ro
     depends_on:
-      - app
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -kf https://localhost/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   node_exporter:
+    restart: unless-stopped
     image: prom/node-exporter:latest
     pid: host
     volumes:
@@ -224,6 +297,7 @@ services:
     ports: ["127.0.0.1:9100:9100"]
 
   prometheus:
+    restart: unless-stopped
     image: prom/prometheus:latest
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -235,6 +309,7 @@ services:
       - node_exporter
 
   grafana:
+    restart: unless-stopped
     image: grafana/grafana:latest
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
@@ -247,6 +322,7 @@ services:
       - prometheus
 
   glitchtip-migrate:
+    restart: unless-stopped
     image: glitchtip/glitchtip:latest
     command: ./manage.py migrate
     environment:
@@ -258,6 +334,7 @@ services:
       - redis
 
   glitchtip-web:
+    restart: unless-stopped
     image: glitchtip/glitchtip:latest
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
@@ -269,6 +346,7 @@ services:
       - glitchtip-migrate
 
   glitchtip-worker:
+    restart: unless-stopped
     image: glitchtip/glitchtip:latest
     command: ./bin/run-celery-with-beat.sh
     environment:

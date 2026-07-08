@@ -17,6 +17,8 @@ def run_ingestion(self, job_id: str) -> None:
         state = {"file_path": job.staged_path}
         if job.doc_version:
             state["doc_version"] = job.doc_version
+        if job.target_logical_doc_id:
+            state["target_logical_doc_id"] = job.target_logical_doc_id
 
         try:
             result = build_ingestion_graph().invoke(state)

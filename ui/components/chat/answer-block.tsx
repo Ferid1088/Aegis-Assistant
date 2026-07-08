@@ -57,13 +57,21 @@ export function AnswerBlock({ answer, onCorrect }: { answer: ChatAnswer; onCorre
       {answer.citations.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pt-1">
           {answer.citations.map((c, i) => (
-            <Link
-              key={i}
-              href={`/viewer/${c.documentId}?v=${c.versionNo}&page=${c.page}`}
-              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-2 py-1 font-mono text-[11px] text-inkSoft hover:border-lineStrong hover:text-ink"
-            >
-              <FileText className="h-3 w-3" />{c.documentTitle}<span className="text-inkFaint">· p.{c.page}</span>
-            </Link>
+            (() => {
+              const region = c.region
+                ? `${c.region[0]},${c.region[1]},${c.region[0] + c.region[2]},${c.region[1] + c.region[3]}`
+                : null;
+              const href = `/viewer/${c.documentId}?v=${c.versionNo}&page=${c.page}${region ? `&region=${region}` : ""}`;
+              return (
+                <Link
+                  key={i}
+                  href={href}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-2 py-1 font-mono text-[11px] text-inkSoft hover:border-lineStrong hover:text-ink"
+                >
+                  <FileText className="h-3 w-3" />{c.documentTitle}<span className="text-inkFaint">· p.{c.page}</span>
+                </Link>
+              );
+            })()
           ))}
         </div>
       )}

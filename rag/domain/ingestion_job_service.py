@@ -11,9 +11,14 @@ class JobNotFound(Exception):
 
 def create_job(
     db: Session, *, uploaded_by: uuid.UUID, filename: str, staged_path: str, doc_version: str | None,
+    target_logical_doc_id: str | None = None,
 ) -> IngestionJob:
     job = IngestionJob(
-        uploaded_by=uploaded_by, filename=filename, staged_path=staged_path, doc_version=doc_version,
+        uploaded_by=uploaded_by,
+        filename=filename,
+        staged_path=staged_path,
+        doc_version=doc_version,
+        target_logical_doc_id=target_logical_doc_id,
     )
     db.add(job)
     db.commit()
@@ -56,3 +61,12 @@ def record_retry_attempt(db: Session, job: IngestionJob, *, error: str) -> Inges
     job.retry_count += 1
     db.commit()
     return job
+
+
+def list_jobs(db: Session, limit: int = 100) -> list[IngestionJob]:
+    return (
+        db.query(IngestionJob)
+        .order_by(IngestionJob.created_at.desc())
+        .limit(limit)
+        .all()
+    )

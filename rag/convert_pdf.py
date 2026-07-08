@@ -3,7 +3,8 @@
 import json
 from pathlib import Path
 
-from docling.document_converter import DocumentConverter
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, InputFormat, PdfFormatOption
 from docling_core.types.doc.document import DoclingDocument
 
 
@@ -54,8 +55,13 @@ def export_tables(doc: DoclingDocument, source: str) -> list[dict]:
     return tables
 
 
-def convert(pdf_path: Path) -> tuple[Path, Path]:
-    converter = DocumentConverter()
+def convert(pdf_path: Path, render_dir: Path | None = None) -> tuple[Path, Path]:
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.generate_page_images = True
+    pipeline_options.images_scale = 1.5
+    converter = DocumentConverter(
+        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
+    )
     result = converter.convert(pdf_path)
     check_text_layer(result)
 
@@ -72,6 +78,12 @@ def convert(pdf_path: Path) -> tuple[Path, Path]:
         json.dumps({"source": pdf_path.name, "tables": tables}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    if render_dir is not None:
+        render_dir.mkdir(parents=True, exist_ok=True)
+        for page in result.pages:
+            image = page.get_image(scale=1.5)
+            image.save(render_dir / f"page_{page.page_no}.png")
 
     print(f"✅ Converted {pdf_path.name} → {docling_path.name}, {tables_path.name}")
     return docling_path, tables_path
