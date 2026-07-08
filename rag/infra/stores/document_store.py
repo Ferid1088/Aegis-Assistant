@@ -176,6 +176,14 @@ class SQLiteDocumentStore(DocumentStore):
             created_at=self._parse_ts(row["created_at"]),
         )
 
+    def update_logical_document_metadata(
+        self, logical_doc_id: str, department: str | None, document_type: str | None, access_level: list[str],
+    ) -> None:
+        self.conn.execute(
+            "UPDATE logical_documents SET department = ?, document_type = ?, access_level = ? WHERE logical_doc_id = ?",
+            (department, document_type, json.dumps(access_level), logical_doc_id),
+        )
+
     def list_logical_documents(self) -> list[LogicalDocument]:
         rows = self.conn.execute(
             """SELECT logical_doc_id, source_identity, tenant_id, department, access_level,

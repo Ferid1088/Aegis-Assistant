@@ -179,3 +179,34 @@ def test_list_logical_documents_empty(tmp_path):
     finally:
         store.conn.close()
         os.unlink(db_path)
+
+
+def test_update_logical_document_metadata():
+    store, db_path = _store()
+    try:
+        store.create_logical_document(LogicalDocument(logical_doc_id="L1", source_identity="filesystem:/x.pdf"))
+        store.update_logical_document_metadata("L1", "Finance", "invoice", ["FIN_L1", "FIN_L2"])
+
+        fetched = store.get_logical_document("L1")
+        assert fetched.department == "Finance"
+        assert fetched.document_type == "invoice"
+        assert fetched.access_level == ["FIN_L1", "FIN_L2"]
+    finally:
+        store.conn.close()
+        os.unlink(db_path)
+
+
+def test_update_logical_document_metadata_can_clear_fields():
+    store, db_path = _store()
+    try:
+        store.create_logical_document(LogicalDocument(logical_doc_id="L1", source_identity="filesystem:/x.pdf"))
+        store.update_logical_document_metadata("L1", "Finance", "invoice", ["FIN_L1"])
+        store.update_logical_document_metadata("L1", None, None, [])
+
+        fetched = store.get_logical_document("L1")
+        assert fetched.department is None
+        assert fetched.document_type is None
+        assert fetched.access_level == []
+    finally:
+        store.conn.close()
+        os.unlink(db_path)
