@@ -174,7 +174,7 @@ def get_shared_vector_store() -> QdrantVectorStore:
     accessed by another instance of Qdrant client...").
 
     Guarded by a real lock (not a bare `if _shared_vec_store is None` check):
-    rag/graphs/query.py's retrieval nodes (dense/sparse/graph) run concurrently
+    rag/pipelines/retrieval/nodes.py's retrieval nodes (dense/sparse/graph) run concurrently
     across worker threads within a single query (LangGraph fans them out via a
     thread pool executor), so the very first call into this function during a
     query can race across threads. Confirmed real and non-deterministic --

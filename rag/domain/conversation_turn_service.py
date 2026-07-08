@@ -46,7 +46,7 @@ def delete_all_for_conversation(db: Session, conversation_id: uuid.UUID) -> None
 
 
 def to_turn_history(turns: list[ConversationTurn]) -> list[dict]:
-    # Key names must match rag.graphs.query.finalize_turn's history.append({...}) exactly,
+    # Key names must match rag.pipelines.retrieval.nodes.finalize_turn's history.append({...}) exactly,
     # since this history is fed back into the graph as `turn_history` state. Note that the
     # question key there is "user_question", not "question".
     return [

@@ -12,13 +12,13 @@ def _make_chunk(chunk_id: str, score: float) -> RetrievedChunk:
 
 def test_maybe_hyde_skips_when_disabled():
     """maybe_hyde returns fused unchanged when hyde_enabled=False."""
-    from rag.graphs.query import maybe_hyde
+    from rag.pipelines.retrieval.nodes import maybe_hyde
     state = {
         "question": "Was ist Urlaubsanspruch?",
         "fused": [_make_chunk("a", 0.1)],
         "lang": "de",
     }
-    with patch("rag.graphs.query.settings") as mock_settings:
+    with patch("rag.pipelines.retrieval.nodes.settings") as mock_settings:
         mock_settings.hyde_enabled = False
         mock_settings.hyde_threshold = 0.3
         result = maybe_hyde(state)
@@ -27,13 +27,13 @@ def test_maybe_hyde_skips_when_disabled():
 
 def test_maybe_hyde_skips_when_score_above_threshold():
     """maybe_hyde skips when top score exceeds threshold."""
-    from rag.graphs.query import maybe_hyde
+    from rag.pipelines.retrieval.nodes import maybe_hyde
     state = {
         "question": "Was ist Urlaubsanspruch?",
         "fused": [_make_chunk("a", 0.9), _make_chunk("b", 0.5)],
         "lang": "de",
     }
-    with patch("rag.graphs.query.settings") as mock_settings:
+    with patch("rag.pipelines.retrieval.nodes.settings") as mock_settings:
         mock_settings.hyde_enabled = True
         mock_settings.hyde_threshold = 0.3
         result = maybe_hyde(state)
@@ -42,7 +42,7 @@ def test_maybe_hyde_skips_when_score_above_threshold():
 
 def test_maybe_hyde_fires_when_score_below_threshold():
     """maybe_hyde fires and extends fused when top score is below threshold."""
-    from rag.graphs.query import maybe_hyde
+    from rag.pipelines.retrieval.nodes import maybe_hyde
     from rag.capabilities.search.search_service import SearchService
 
     low_score_chunk = _make_chunk("a", 0.1)
@@ -64,9 +64,9 @@ def test_maybe_hyde_fires_when_score_below_threshold():
         "tenant_id": "default",
     }
 
-    with patch("rag.graphs.query.settings") as mock_settings, \
-         patch("rag.graphs.query.get_llm", return_value=mock_llm), \
-         patch("rag.graphs.query._get_search", return_value=mock_search):
+    with patch("rag.pipelines.retrieval.nodes.settings") as mock_settings, \
+         patch("rag.pipelines.retrieval.nodes.get_llm", return_value=mock_llm), \
+         patch("rag.pipelines.retrieval.nodes._get_search", return_value=mock_search):
         mock_settings.hyde_enabled = True
         mock_settings.hyde_threshold = 0.3
         mock_settings.acl_enforce = False

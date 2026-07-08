@@ -4,7 +4,7 @@ import uuid
 
 import gradio as gr
 
-from rag.graphs.query import build_query_graph
+from rag.pipelines.retrieval.graph import build_query_graph
 
 graph = build_query_graph()
 

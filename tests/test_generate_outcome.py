@@ -7,7 +7,7 @@ def test_generate_impl_records_answered(monkeypatch):
     def mock_set(key, value):
         captured[key] = value
 
-    import rag.graphs.query as qmod
+    import rag.pipelines.retrieval.nodes as qmod
     import rag.crosscutting.observability.tracing as tr_module
     monkeypatch.setattr(tr_module, "set_span_attribute", mock_set)
 
@@ -36,7 +36,7 @@ def test_generate_impl_records_declined(monkeypatch):
     def mock_set(key, value):
         captured[key] = value
 
-    import rag.graphs.query as qmod
+    import rag.pipelines.retrieval.nodes as qmod
     import rag.crosscutting.observability.tracing as tr_module
     monkeypatch.setattr(tr_module, "set_span_attribute", mock_set)
 
@@ -64,7 +64,7 @@ def test_generate_impl_records_retrieval_miss(monkeypatch):
     def mock_set(key, value):
         captured[key] = value
 
-    import rag.graphs.query as qmod
+    import rag.pipelines.retrieval.nodes as qmod
     import rag.crosscutting.observability.tracing as tr_module
     monkeypatch.setattr(tr_module, "set_span_attribute", mock_set)
 
@@ -90,7 +90,7 @@ def test_generate_impl_records_fallback(monkeypatch):
     def mock_set(key, value):
         captured[key] = value
 
-    import rag.graphs.query as qmod
+    import rag.pipelines.retrieval.nodes as qmod
     import rag.crosscutting.observability.tracing as tr_module
     monkeypatch.setattr(tr_module, "set_span_attribute", mock_set)
 

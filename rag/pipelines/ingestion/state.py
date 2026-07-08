@@ -26,7 +26,7 @@ def _get_doc_store() -> SQLiteDocumentStore:
 
 def _get_vec_store() -> QdrantVectorStore:
     # Process-wide singleton (rag/infra/stores/vector_store.py) -- NOT a private one
-    # here, so ingestion (writes) and query (reads, rag/graphs/query.py) share
+    # here, so ingestion (writes) and query (reads, rag/pipelines/retrieval/) share
     # the one open embedded-Qdrant handle a process is allowed to hold. See
     # get_shared_vector_store()'s docstring for why a second, independent
     # QdrantVectorStore() used to break any process that did both.

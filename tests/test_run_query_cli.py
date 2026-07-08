@@ -1,5 +1,5 @@
 """Regression test for a real bug in run_query.py (repo-root CLI entry point):
-build_query_graph() (rag/graphs/query.py) always compiles the graph with a
+build_query_graph() (rag/pipelines/retrieval/graph.py) always compiles the graph with a
 checkpointer attached (`g.compile(checkpointer=_checkpointer)`), and LangGraph
 requires a `configurable.thread_id` (or checkpoint_ns/checkpoint_id) on every
 `.invoke()` once a checkpointer is present, or it raises

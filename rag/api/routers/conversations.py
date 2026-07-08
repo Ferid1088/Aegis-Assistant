@@ -18,14 +18,14 @@ from rag.crosscutting.security.generation_limits import (
 from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import conversation_service, conversation_turn_service
 from rag.domain.conversation import ConversationState
-from rag.graphs.query import build_query_graph
+from rag.pipelines.retrieval.graph import build_query_graph
 from rag.infra.stores.document_store import SQLiteDocumentStore
 from rag.infra.stores.sql.base import get_db
 from rag.infra.stores.sql.models import Conversation, ConversationTurn
 
 router = APIRouter()
 
-_MAX_HISTORY_TURNS = 8  # mirrors rag/graphs/query.py's own _MAX_TURNS constant
+_MAX_HISTORY_TURNS = 8  # mirrors rag/pipelines/retrieval/state.py's own _MAX_TURNS constant
 
 
 def _to_response(conv: Conversation) -> ConversationResponse:

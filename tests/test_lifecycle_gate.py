@@ -3,7 +3,7 @@
 import time
 from unittest.mock import patch
 
-from rag.graphs.query import lifecycle_gate, lifecycle_denied
+from rag.pipelines.retrieval.nodes import lifecycle_gate, lifecycle_denied
 
 
 # ── Lifecycle gate ────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ def _make_repeat_cache(normalized_q: str, ts_offset: float = 0.0) -> dict:
 
 def test_l1_cache_fresh_entry_is_used(monkeypatch):
     """A cache entry written just now should be a cache hit."""
-    from rag.graphs.query import contextualize
+    from rag.pipelines.retrieval.nodes import contextualize
 
     normalized_q = "was verdient e12"
     cache = _make_repeat_cache(normalized_q, ts_offset=0)
@@ -79,11 +79,11 @@ def test_l1_cache_fresh_entry_is_used(monkeypatch):
     # mock them to isolate the TTL logic.
     from rag.capabilities.contextualize import ContextualizationResult
     monkeypatch.setattr(
-        "rag.graphs.query.contextualize_question",
+        "rag.pipelines.retrieval.nodes.contextualize_question",
         lambda q, h: ContextualizationResult(standalone_question="Was verdient E12?"),
     )
     monkeypatch.setattr(
-        "rag.graphs.query.normalize_question",
+        "rag.pipelines.retrieval.nodes.normalize_question",
         lambda q: normalized_q,
     )
     monkeypatch.setattr("rag.capabilities.cache.read_cache", lambda *a, **kw: None)
@@ -95,7 +95,7 @@ def test_l1_cache_fresh_entry_is_used(monkeypatch):
 
 def test_l1_cache_expired_entry_is_skipped(monkeypatch):
     """A cache entry older than cache_ttl_answer must be treated as a miss."""
-    from rag.graphs.query import contextualize
+    from rag.pipelines.retrieval.nodes import contextualize
     from rag.config import settings
 
     normalized_q = "was verdient e12"
@@ -104,11 +104,11 @@ def test_l1_cache_expired_entry_is_skipped(monkeypatch):
 
     from rag.capabilities.contextualize import ContextualizationResult
     monkeypatch.setattr(
-        "rag.graphs.query.contextualize_question",
+        "rag.pipelines.retrieval.nodes.contextualize_question",
         lambda q, h: ContextualizationResult(standalone_question="Was verdient E12?"),
     )
     monkeypatch.setattr(
-        "rag.graphs.query.normalize_question",
+        "rag.pipelines.retrieval.nodes.normalize_question",
         lambda q: normalized_q,
     )
     monkeypatch.setattr("rag.capabilities.cache.read_cache", lambda *a, **kw: None)

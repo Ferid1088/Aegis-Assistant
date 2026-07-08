@@ -4,7 +4,7 @@ import argparse
 import json
 import uuid
 
-from rag.graphs.query import build_query_graph
+from rag.pipelines.retrieval.graph import build_query_graph
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
         state["doc_filter"] = json.loads(args.doc_filter)
 
     # build_query_graph() always compiles with a checkpointer attached
-    # (rag/graphs/query.py's _make_checkpointer(), InMemorySaver or
+    # (rag/pipelines/retrieval/state.py's _make_checkpointer(), InMemorySaver or
     # SqliteSaver) -- LangGraph requires a configurable.thread_id (or
     # checkpoint_ns/checkpoint_id) on every .invoke() once a checkpointer is
     # present, or it raises ValueError("Checkpointer requires one or more of

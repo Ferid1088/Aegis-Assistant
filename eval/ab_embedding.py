@@ -72,7 +72,7 @@ def _run_variant(variant: dict, gold: list[dict]) -> dict:
         "Re-index both collections before running this script."
     )
 
-    from rag.graphs.query import build_query_graph
+    from rag.pipelines.retrieval.graph import build_query_graph
     graph = build_query_graph()
 
     questions, answers, contexts_list, ground_truths = [], [], [], []

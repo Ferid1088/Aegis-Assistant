@@ -74,7 +74,7 @@ def _run_eval_recall(neo4j_uri: str) -> tuple[float, float]:
     from rag.config import settings as _s
     assert _s.neo4j_uri == neo4j_uri
 
-    from rag.graphs.query import build_query_graph
+    from rag.pipelines.retrieval.graph import build_query_graph
     from rag.infra.models.llm import get_llm, get_embedder
 
     graph = build_query_graph()

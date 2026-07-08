@@ -41,7 +41,7 @@ from ragas.metrics import (
     faithfulness,
 )
 
-from rag.graphs.query import build_query_graph
+from rag.pipelines.retrieval.graph import build_query_graph
 from rag.infra.models.llm import get_llm
 
 GOLDEN_PATH = Path("eval/golden_set.jsonl")
@@ -83,7 +83,7 @@ def main():
 
         try:
             # build_query_graph() always compiles with a checkpointer attached
-            # (rag/graphs/query.py's _make_checkpointer(), InMemorySaver or
+            # (rag/pipelines/retrieval/state.py's _make_checkpointer(), InMemorySaver or
             # SqliteSaver) -- LangGraph requires a configurable.thread_id (or
             # checkpoint_ns/checkpoint_id) on every .invoke() once a checkpointer
             # is present, or it raises ValueError("Checkpointer requires one or

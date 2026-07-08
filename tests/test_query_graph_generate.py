@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from rag.graphs.query import _generate_impl, generate
+from rag.pipelines.retrieval.nodes import _generate_impl, generate
 from rag.domain.models import RetrievedChunk
 
 
@@ -11,7 +11,7 @@ def _fake_llm(content: str) -> MagicMock:
 
 
 def test_generate_impl_citations_include_logical_doc_id(monkeypatch):
-    monkeypatch.setattr("rag.graphs.query.get_llm", lambda: _fake_llm("the answer"))
+    monkeypatch.setattr("rag.pipelines.retrieval.nodes.get_llm", lambda: _fake_llm("the answer"))
     chunk = RetrievedChunk(
         chunk_id="c1", content="some content", score=0.9,
         metadata={"page_numbers": [3], "heading_path": ["A"], "bboxes": [], "logical_doc_id": "doc-123"},
@@ -21,7 +21,7 @@ def test_generate_impl_citations_include_logical_doc_id(monkeypatch):
 
 
 def test_generate_impl_citation_logical_doc_id_is_none_when_absent(monkeypatch):
-    monkeypatch.setattr("rag.graphs.query.get_llm", lambda: _fake_llm("the answer"))
+    monkeypatch.setattr("rag.pipelines.retrieval.nodes.get_llm", lambda: _fake_llm("the answer"))
     chunk = RetrievedChunk(
         chunk_id="c1", content="some content", score=0.9,
         metadata={"page_numbers": [3], "heading_path": [], "bboxes": []},
@@ -31,7 +31,7 @@ def test_generate_impl_citation_logical_doc_id_is_none_when_absent(monkeypatch):
 
 
 def test_generate_no_longer_bakes_assumptions_into_answer_text(monkeypatch):
-    monkeypatch.setattr("rag.graphs.query.get_llm", lambda: _fake_llm("the real answer"))
+    monkeypatch.setattr("rag.pipelines.retrieval.nodes.get_llm", lambda: _fake_llm("the real answer"))
     chunk = RetrievedChunk(chunk_id="c1", content="content", score=0.9, metadata={"page_numbers": [1]})
     state = {
         "question": "What is X?", "reranked": [chunk], "lang": "de",
@@ -43,7 +43,7 @@ def test_generate_no_longer_bakes_assumptions_into_answer_text(monkeypatch):
 
 
 def test_generate_answer_unaffected_when_no_assumptions(monkeypatch):
-    monkeypatch.setattr("rag.graphs.query.get_llm", lambda: _fake_llm("plain answer"))
+    monkeypatch.setattr("rag.pipelines.retrieval.nodes.get_llm", lambda: _fake_llm("plain answer"))
     chunk = RetrievedChunk(chunk_id="c1", content="content", score=0.9, metadata={"page_numbers": [1]})
     state = {"question": "What is X?", "reranked": [chunk], "lang": "de", "assumptions": []}
     result = generate(state)

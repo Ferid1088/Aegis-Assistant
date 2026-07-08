@@ -66,7 +66,7 @@ def test_ingest_variant_b_resolves_rag_import_without_pythonpath(tmp_path):
 def test_run_eval_resolves_rag_import_without_pythonpath(tmp_path):
     # cwd (tmp_path) deliberately has no eval/golden_set.jsonl, so main() raises
     # FileNotFoundError trying to open it -- proving the module-level `from
-    # rag.graphs.query import build_query_graph` (and the heavier ragas/datasets
+    # rag.pipelines.retrieval.graph import build_query_graph` (and the heavier ragas/datasets
     # imports before it) already resolved cleanly.
     proc = _run("eval/run_eval.py", [], cwd=tmp_path)
     assert "ModuleNotFoundError: No module named 'rag'" not in proc.stderr, proc.stderr
