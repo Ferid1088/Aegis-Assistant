@@ -104,7 +104,7 @@ def _get_search() -> SearchService:
     if _search is None:
         # Explicitly pass the process-wide shared QdrantVectorStore (rather than
         # letting SearchService lazily create its own private one) so this
-        # query-side singleton and rag/graphs/ingestion.py's write-side singleton
+        # query-side singleton and rag/pipelines/ingestion/nodes.py's write-side singleton
         # never independently open a second handle on the same embedded Qdrant
         # storage -- see get_shared_vector_store()'s docstring for the
         # RuntimeError("...already accessed by another instance...") that used

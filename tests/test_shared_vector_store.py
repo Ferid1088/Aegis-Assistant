@@ -1,7 +1,7 @@
 """Regression tests for two real bugs found while verifying the `eval-harness`
 CI job (Phase 8.8, Task 4) via `tests/integration/test_upload_and_chat_flow.py`:
 
-1. rag/graphs/ingestion.py (writes) and rag/graphs/query.py's SearchService
+1. rag/pipelines/ingestion/nodes.py (writes) and rag/graphs/query.py's SearchService
    (reads, via rag/capabilities/search/search_service.py) each used to lazily
    create and cache their OWN separate QdrantVectorStore. Embedded/local Qdrant
    storage (QdrantClient(path=...), used everywhere in this project -- there is
