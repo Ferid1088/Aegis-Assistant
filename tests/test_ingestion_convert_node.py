@@ -39,3 +39,30 @@ def test_convert_sets_metadata_on_newly_created_logical_document(tmp_path, monke
     assert doc.document_type == "invoice"
     assert doc.access_level == ["FIN_L1"]
     store.conn.close()
+
+
+def test_ingestion_state_schema_preserves_target_logical_doc_id():
+    """Regression test for a real bug found during manual end-to-end verification:
+    LangGraph's StateGraph silently drops any input key not declared in the state
+    TypedDict schema. IngestionState never declared target_logical_doc_id, so every
+    "attach a new version of an existing document" upload silently created a
+    brand-new logical document instead -- rag/worker/tasks.py sets
+    state["target_logical_doc_id"] correctly, but convert() never saw it once the
+    initial dict passed through StateGraph.invoke()."""
+    from langgraph.graph import END, START, StateGraph
+
+    from rag.graphs.ingestion import IngestionState
+
+    captured = {}
+
+    def probe(state):
+        captured.update(state)
+        return {}
+
+    g = StateGraph(IngestionState)
+    g.add_node("probe", probe)
+    g.add_edge(START, "probe")
+    g.add_edge("probe", END)
+    g.compile().invoke({"file_path": "x.pdf", "target_logical_doc_id": "EXISTING123"})
+
+    assert captured.get("target_logical_doc_id") == "EXISTING123"

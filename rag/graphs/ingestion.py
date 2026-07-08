@@ -51,6 +51,7 @@ def _get_vec_store() -> QdrantVectorStore:
 class IngestionState(TypedDict):
     file_path: str
     doc_version: NotRequired[str]
+    target_logical_doc_id: NotRequired[str]
     department: NotRequired[str]
     document_type: NotRequired[str]
     access_level: NotRequired[list[str]]
