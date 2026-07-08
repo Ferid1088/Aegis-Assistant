@@ -101,6 +101,29 @@ def test_create_and_delete_access_level(client, db_session):
     assert resp.status_code == 204
 
 
+def test_list_access_levels_for_department(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.post("/api/v1/admin/departments", json={"name": "HR"}, headers=headers)
+    dept_id = resp.json()["id"]
+    client.post(f"/api/v1/admin/departments/{dept_id}/access-levels", json={"label": "Public", "rank": 1}, headers=headers)
+    client.post(f"/api/v1/admin/departments/{dept_id}/access-levels", json={"label": "Confidential", "rank": 2}, headers=headers)
+
+    resp = client.get(f"/api/v1/admin/departments/{dept_id}/access-levels", headers=headers)
+    assert resp.status_code == 200
+    labels = {level["label"] for level in resp.json()}
+    assert labels == {"Public", "Confidential"}
+    assert all(level["department_id"] == dept_id for level in resp.json())
+
+
+def test_list_access_levels_for_unknown_department_404s(client, db_session):
+    _, token = _make_admin_user(db_session)
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = client.get("/api/v1/admin/departments/00000000-0000-0000-0000-000000000000/access-levels", headers=headers)
+    assert resp.status_code == 404
+
+
 def test_create_access_level_for_unknown_department_404s(client, db_session):
     _, token = _make_admin_user(db_session)
     headers = {"Authorization": f"Bearer {token}"}

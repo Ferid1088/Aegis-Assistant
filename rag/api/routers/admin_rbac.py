@@ -73,6 +73,19 @@ def create_access_level(
     return AccessLevelResponse(id=str(level.id), department_id=str(department_id), label=level.label, rank=level.rank)
 
 
+@router.get("/departments/{department_id}/access-levels", response_model=list[AccessLevelResponse])
+def list_access_levels(
+    department_id: uuid.UUID,
+    current: AuthenticatedUser = Depends(require_permission("admin:departments")),
+    db: Session = Depends(get_db),
+) -> list[AccessLevelResponse]:
+    dept = db.get(Department, department_id)
+    if dept is None:
+        raise HTTPException(status_code=404, detail="department not found")
+    levels = db.execute(select(AccessLevel).where(AccessLevel.department_id == department_id)).scalars().all()
+    return [AccessLevelResponse(id=str(lv.id), department_id=str(department_id), label=lv.label, rank=lv.rank) for lv in levels]
+
+
 @router.delete("/access-levels/{access_level_id}", status_code=204)
 def delete_access_level(
     access_level_id: uuid.UUID,
