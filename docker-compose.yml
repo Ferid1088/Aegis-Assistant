@@ -265,6 +265,26 @@ services:
       retries: 3
       start_period: 60s
 
+  ui:
+    restart: unless-stopped
+    build: ./ui
+    image: rag-appliance-ui:latest
+    environment:
+      API_BASE_URL: http://app:8000
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs:
+      - /tmp
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
   nginx:
     restart: unless-stopped
     image: nginx:latest
@@ -274,6 +294,8 @@ services:
       - ./certs:/etc/nginx/certs:ro
     depends_on:
       app:
+        condition: service_healthy
+      ui:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -kf https://localhost/healthz || exit 1"]
