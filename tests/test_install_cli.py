@@ -2,10 +2,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 
+@patch("install.read_env_value")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -14,11 +13,15 @@ from unittest.mock import MagicMock, call, patch
 @patch("install.check_docker")
 def test_run_install_calls_all_steps_in_order(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
-    mock_wait_for_postgres,
+    mock_subprocess_run, mock_run_store_migrate, mock_healthcheck,
+    mock_wait_for_postgres, mock_read_env_value,
 ):
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = ("admin", "generated-password")
+    # No pre-existing .env in this scenario -- every read_env_value() call
+    # (NEO4J_PASSWORD, QDRANT_URL, POSTGRES_PASSWORD, etc.) returns None, same
+    # as a genuinely fresh checkout. Keeps write_missing_env_vars's call count
+    # deterministic regardless of whether the machine running this test
+    # happens to have a real .env sitting in the repo root.
+    mock_read_env_value.return_value = None
 
     import install
     install.run_install()
@@ -30,39 +33,11 @@ def test_run_install_calls_all_steps_in_order(
     assert mock_subprocess_run.call_count >= 2  # docker compose up -d, alembic upgrade head (run_store_migrate is a direct call, not subprocess)
     mock_wait_for_postgres.assert_called_once()
     mock_run_store_migrate.main.assert_called_once()
-    mock_ensure_admin.assert_called_once()
     mock_healthcheck.assert_called_once()
 
 
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
-@patch("install.run_store_migrate")
-@patch("install.subprocess.run")
-@patch("install.write_missing_env_vars")
-@patch("install.check_gpu")
-@patch("install.check_ram")
-@patch("install.check_docker")
-def test_run_install_prints_credentials_only_when_admin_created(
-    mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
-    mock_wait_for_postgres, capsys,
-):
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None  # admin already existed
-
-    import install
-    install.run_install()
-
-    captured = capsys.readouterr()
-    assert "SAVE THIS NOW" not in captured.out
-
-
-@patch("install.wait_for_postgres_ready")
-@patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -71,24 +46,26 @@ def test_run_install_prints_credentials_only_when_admin_created(
 @patch("install.check_docker")
 def test_run_install_writes_redis_url(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_subprocess_run, mock_run_store_migrate, mock_healthcheck,
     mock_wait_for_postgres,
 ):
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None
-
     import install
     install.run_install()
 
-    written_values = mock_write_env.call_args.args[1]
+    # First call is always the main secrets batch, unconditionally -- a
+    # possible second DATABASE_URL-only write (see
+    # test_run_install_writes_database_url_to_env_before_alembic_subprocess)
+    # only fires when POSTGRES_PASSWORD is already readable from .env, which
+    # depends on whether this test happens to run against a repo checkout
+    # that already has a real .env. Indexing the first call keeps this
+    # assertion deterministic either way.
+    written_values = mock_write_env.call_args_list[0].args[1]
     assert "REDIS_URL" in written_values
 
 
 @patch("install.read_env_value")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -97,7 +74,7 @@ def test_run_install_writes_redis_url(
 @patch("install.check_docker")
 def test_run_install_syncs_in_process_neo4j_password_and_qdrant_url_from_env(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
+    mock_subprocess_run, mock_run_store_migrate,
     mock_healthcheck, mock_wait_for_postgres, mock_read_env_value,
 ):
     from rag.config import settings
@@ -121,8 +98,6 @@ def test_run_install_syncs_in_process_neo4j_password_and_qdrant_url_from_env(
     original_llm_backend = settings.llm_backend
     original_llm_model = settings.llm_model
     try:
-        mock_session_local.return_value = MagicMock()
-        mock_ensure_admin.return_value = None
         mock_read_env_value.return_value = "freshly-generated-secret"
 
         import install
@@ -162,8 +137,6 @@ def test_run_install_syncs_in_process_neo4j_password_and_qdrant_url_from_env(
 @patch("install.check_gpu")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -171,25 +144,28 @@ def test_run_install_syncs_in_process_neo4j_password_and_qdrant_url_from_env(
 @patch("install.check_docker")
 def test_run_install_writes_llm_backend_vllm_when_gpu_detected(
     mock_check_docker, mock_check_ram, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_subprocess_run, mock_run_store_migrate, mock_healthcheck,
     mock_wait_for_postgres, mock_check_gpu,
 ):
     mock_check_gpu.return_value = True
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None
 
     import install
     install.run_install()
 
-    written_values = mock_write_env.call_args.args[1]
+    # First call is always the main secrets batch, unconditionally -- a
+    # possible second DATABASE_URL-only write (see
+    # test_run_install_writes_database_url_to_env_before_alembic_subprocess)
+    # only fires when POSTGRES_PASSWORD is already readable from .env, which
+    # depends on whether this test happens to run against a repo checkout
+    # that already has a real .env. Indexing the first call keeps this
+    # assertion deterministic either way.
+    written_values = mock_write_env.call_args_list[0].args[1]
     assert written_values["LLM_BACKEND"] == "vllm"
 
 
 @patch("install.check_gpu")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -197,17 +173,22 @@ def test_run_install_writes_llm_backend_vllm_when_gpu_detected(
 @patch("install.check_docker")
 def test_run_install_writes_llm_backend_ollama_when_no_gpu(
     mock_check_docker, mock_check_ram, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_subprocess_run, mock_run_store_migrate, mock_healthcheck,
     mock_wait_for_postgres, mock_check_gpu,
 ):
     mock_check_gpu.return_value = False
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None
 
     import install
     install.run_install()
 
-    written_values = mock_write_env.call_args.args[1]
+    # First call is always the main secrets batch, unconditionally -- a
+    # possible second DATABASE_URL-only write (see
+    # test_run_install_writes_database_url_to_env_before_alembic_subprocess)
+    # only fires when POSTGRES_PASSWORD is already readable from .env, which
+    # depends on whether this test happens to run against a repo checkout
+    # that already has a real .env. Indexing the first call keeps this
+    # assertion deterministic either way.
+    written_values = mock_write_env.call_args_list[0].args[1]
     assert written_values["LLM_BACKEND"] == "ollama"
 
 
@@ -216,8 +197,6 @@ def test_run_install_writes_llm_backend_ollama_when_no_gpu(
 @patch("install.read_env_value")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -225,7 +204,7 @@ def test_run_install_writes_llm_backend_ollama_when_no_gpu(
 @patch("install.check_docker")
 def test_run_install_syncs_in_process_llm_backend_from_env(
     mock_check_docker, mock_check_ram, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
+    mock_subprocess_run, mock_run_store_migrate,
     mock_healthcheck, mock_wait_for_postgres, mock_read_env_value, mock_check_gpu, mock_reset_engine,
 ):
     from rag.config import settings
@@ -237,8 +216,6 @@ def test_run_install_syncs_in_process_llm_backend_from_env(
     original_redis_url = settings.redis_url
     try:
         mock_check_gpu.return_value = True
-        mock_session_local.return_value = MagicMock()
-        mock_ensure_admin.return_value = None
         mock_read_env_value.return_value = "vllm"
 
         import install
@@ -265,8 +242,6 @@ def test_run_install_syncs_in_process_llm_backend_from_env(
 @patch("install.read_env_value")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -274,7 +249,7 @@ def test_run_install_syncs_in_process_llm_backend_from_env(
 @patch("install.check_docker")
 def test_run_install_syncs_in_process_llm_model_from_env(
     mock_check_docker, mock_check_ram, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
+    mock_subprocess_run, mock_run_store_migrate,
     mock_healthcheck, mock_wait_for_postgres, mock_read_env_value, mock_check_gpu, mock_reset_engine,
 ):
     from rag.config import settings
@@ -286,8 +261,6 @@ def test_run_install_syncs_in_process_llm_model_from_env(
     original_redis_url = settings.redis_url
     try:
         mock_check_gpu.return_value = True
-        mock_session_local.return_value = MagicMock()
-        mock_ensure_admin.return_value = None
         mock_read_env_value.return_value = "Qwen/Qwen2.5-7B-Instruct"
 
         import install
@@ -314,8 +287,6 @@ def test_run_install_syncs_in_process_llm_model_from_env(
 @patch("install.read_env_value")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -324,7 +295,7 @@ def test_run_install_syncs_in_process_llm_model_from_env(
 @patch("install.check_docker")
 def test_run_install_syncs_in_process_database_url_from_generated_postgres_password(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
+    mock_subprocess_run, mock_run_store_migrate,
     mock_healthcheck, mock_wait_for_postgres, mock_read_env_value, mock_reset_engine,
 ):
     from rag.config import settings
@@ -345,8 +316,6 @@ def test_run_install_syncs_in_process_database_url_from_generated_postgres_passw
     original_llm_backend = settings.llm_backend
     original_llm_model = settings.llm_model
     try:
-        mock_session_local.return_value = MagicMock()
-        mock_ensure_admin.return_value = None
         mock_read_env_value.return_value = "freshly-generated-postgres-secret"
 
         import install
@@ -355,9 +324,8 @@ def test_run_install_syncs_in_process_database_url_from_generated_postgres_passw
         # database_url must be rebuilt using the real generated POSTGRES_PASSWORD
         # (not the stale import-time dev-default), and reset_engine() must be
         # called so rag/infra/stores/sql/base.py's cached engine picks it up --
-        # otherwise run_store_migrate.main()/first-admin creation/healthcheck_main()
-        # (all later in this same process) would silently keep using the stale
-        # password.
+        # otherwise run_store_migrate.main()/healthcheck_main() (both later in
+        # this same process) would silently keep using the stale password.
         assert settings.database_url == (
             "postgresql+psycopg://postgres:freshly-generated-postgres-secret@localhost:5432/appliance"
         )
@@ -371,11 +339,81 @@ def test_run_install_syncs_in_process_database_url_from_generated_postgres_passw
         settings.llm_model = original_llm_model
 
 
+@patch("install.reset_engine")
+@patch("install.read_env_value")
+@patch("install.wait_for_postgres_ready")
+@patch("install.healthcheck_main")
+@patch("install.run_store_migrate")
+@patch("install.subprocess.run")
+@patch("install.write_missing_env_vars")
+@patch("install.check_gpu")
+@patch("install.check_ram")
+@patch("install.check_docker")
+def test_run_install_writes_database_url_to_env_before_alembic_subprocess(
+    mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
+    mock_subprocess_run, mock_run_store_migrate,
+    mock_healthcheck, mock_wait_for_postgres, mock_read_env_value, mock_reset_engine,
+):
+    # `alembic upgrade head` below runs as a separate subprocess that imports
+    # rag.config fresh -- it never sees settings.database_url's in-process
+    # mutation (covered by
+    # test_run_install_syncs_in_process_database_url_from_generated_postgres_password
+    # above), only whatever's actually in .env. Without DATABASE_URL written
+    # there too, that fresh Settings() falls back to the hardcoded dev-only
+    # default password and the subprocess fails real Postgres auth against
+    # the actual generated password -- reproduced this for real against a
+    # fresh Settings() instance before writing this fix.
+    from rag.config import settings
+    original_database_url = settings.database_url
+    original_neo4j_password = settings.neo4j_password
+    original_qdrant_url = settings.qdrant_url
+    original_redis_url = settings.redis_url
+    original_llm_backend = settings.llm_backend
+    original_llm_model = settings.llm_model
+    try:
+        mock_read_env_value.return_value = "freshly-generated-postgres-secret"
+
+        call_order = []
+
+        def write_side_effect(_path, values):
+            call_order.append(("write_env", dict(values)))
+            return list(values.keys())
+
+        def subprocess_side_effect(argv, *args, **kwargs):
+            call_order.append(("subprocess_run", list(argv)))
+            return MagicMock()
+
+        mock_write_env.side_effect = write_side_effect
+        mock_subprocess_run.side_effect = subprocess_side_effect
+
+        import install
+        install.run_install()
+
+        database_url_idx = next(
+            i for i, (kind, payload) in enumerate(call_order)
+            if kind == "write_env" and "DATABASE_URL" in payload
+        )
+        assert call_order[database_url_idx][1]["DATABASE_URL"] == (
+            "postgresql+psycopg://postgres:freshly-generated-postgres-secret@localhost:5432/appliance"
+        )
+
+        alembic_idx = next(
+            i for i, (kind, payload) in enumerate(call_order)
+            if kind == "subprocess_run" and payload[:2] == ["alembic", "upgrade"]
+        )
+        assert database_url_idx < alembic_idx
+    finally:
+        settings.database_url = original_database_url
+        settings.neo4j_password = original_neo4j_password
+        settings.qdrant_url = original_qdrant_url
+        settings.redis_url = original_redis_url
+        settings.llm_backend = original_llm_backend
+        settings.llm_model = original_llm_model
+
+
 @patch("install.ensure_glitchtip_database")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -384,25 +422,27 @@ def test_run_install_syncs_in_process_database_url_from_generated_postgres_passw
 @patch("install.check_docker")
 def test_run_install_creates_glitchtip_database_and_writes_its_secret(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
+    mock_subprocess_run, mock_run_store_migrate,
     mock_healthcheck, mock_wait_for_postgres, mock_ensure_glitchtip_db,
 ):
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None
-
     import install
     install.run_install()
 
     mock_ensure_glitchtip_db.assert_called_once()
-    written_values = mock_write_env.call_args.args[1]
+    # First call is always the main secrets batch, unconditionally -- a
+    # possible second DATABASE_URL-only write (see
+    # test_run_install_writes_database_url_to_env_before_alembic_subprocess)
+    # only fires when POSTGRES_PASSWORD is already readable from .env, which
+    # depends on whether this test happens to run against a repo checkout
+    # that already has a real .env. Indexing the first call keeps this
+    # assertion deterministic either way.
+    written_values = mock_write_env.call_args_list[0].args[1]
     assert "GLITCHTIP_SECRET_KEY" in written_values
 
 
 @patch("install.ensure_glitchtip_database")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -411,24 +451,26 @@ def test_run_install_creates_glitchtip_database_and_writes_its_secret(
 @patch("install.check_docker")
 def test_run_install_writes_grafana_admin_password(
     mock_check_docker, mock_check_ram, mock_check_gpu, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin,
+    mock_subprocess_run, mock_run_store_migrate,
     mock_healthcheck, mock_wait_for_postgres, mock_ensure_glitchtip_db,
 ):
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None
-
     import install
     install.run_install()
 
-    written_values = mock_write_env.call_args.args[1]
+    # First call is always the main secrets batch, unconditionally -- a
+    # possible second DATABASE_URL-only write (see
+    # test_run_install_writes_database_url_to_env_before_alembic_subprocess)
+    # only fires when POSTGRES_PASSWORD is already readable from .env, which
+    # depends on whether this test happens to run against a repo checkout
+    # that already has a real .env. Indexing the first call keeps this
+    # assertion deterministic either way.
+    written_values = mock_write_env.call_args_list[0].args[1]
     assert "GRAFANA_ADMIN_PASSWORD" in written_values
 
 
 @patch("install.check_gpu")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -436,7 +478,7 @@ def test_run_install_writes_grafana_admin_password(
 @patch("install.check_docker")
 def test_run_install_docker_compose_up_includes_gpu_profile_when_gpu_detected(
     mock_check_docker, mock_check_ram, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_subprocess_run, mock_run_store_migrate, mock_healthcheck,
     mock_wait_for_postgres, mock_check_gpu,
 ):
     # Final-review Finding 1: docker-compose.yml's vllm service is
@@ -446,8 +488,6 @@ def test_run_install_docker_compose_up_includes_gpu_profile_when_gpu_detected(
     # `--profile gpu`, or vllm never starts and the healthcheck step later
     # in this same run fails trying to reach it.
     mock_check_gpu.return_value = True
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None
 
     import install
     install.run_install()
@@ -464,8 +504,6 @@ def test_run_install_docker_compose_up_includes_gpu_profile_when_gpu_detected(
 @patch("install.check_gpu")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -473,14 +511,12 @@ def test_run_install_docker_compose_up_includes_gpu_profile_when_gpu_detected(
 @patch("install.check_docker")
 def test_run_install_docker_compose_up_unchanged_when_no_gpu(
     mock_check_docker, mock_check_ram, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_subprocess_run, mock_run_store_migrate, mock_healthcheck,
     mock_wait_for_postgres, mock_check_gpu,
 ):
     # Non-GPU path must be provably unchanged: no --profile flag, exact same
     # argv as before this fix.
     mock_check_gpu.return_value = False
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None
 
     import install
     install.run_install()
@@ -499,8 +535,6 @@ def test_run_install_docker_compose_up_unchanged_when_no_gpu(
 @patch("install.check_gpu")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -508,7 +542,7 @@ def test_run_install_docker_compose_up_unchanged_when_no_gpu(
 @patch("install.check_docker")
 def test_run_install_writes_hf_format_llm_model_when_gpu_detected(
     mock_check_docker, mock_check_ram, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_subprocess_run, mock_run_store_migrate, mock_healthcheck,
     mock_wait_for_postgres, mock_check_gpu,
 ):
     # Final-review Finding 2: "qwen2.5:7b" (rag/config.py's Ollama-format
@@ -516,21 +550,24 @@ def test_run_install_writes_hf_format_llm_model_when_gpu_detected(
     # also write an HF-format LLM_MODEL default so vllm's container command
     # (docker-compose.yml: ${LLM_MODEL:-qwen2.5:7b}) can actually load a model.
     mock_check_gpu.return_value = True
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None
 
     import install
     install.run_install()
 
-    written_values = mock_write_env.call_args.args[1]
+    # First call is always the main secrets batch, unconditionally -- a
+    # possible second DATABASE_URL-only write (see
+    # test_run_install_writes_database_url_to_env_before_alembic_subprocess)
+    # only fires when POSTGRES_PASSWORD is already readable from .env, which
+    # depends on whether this test happens to run against a repo checkout
+    # that already has a real .env. Indexing the first call keeps this
+    # assertion deterministic either way.
+    written_values = mock_write_env.call_args_list[0].args[1]
     assert written_values["LLM_MODEL"] == "Qwen/Qwen2.5-7B-Instruct"
 
 
 @patch("install.check_gpu")
 @patch("install.wait_for_postgres_ready")
 @patch("install.healthcheck_main")
-@patch("install.ensure_first_admin")
-@patch("install.SessionLocal")
 @patch("install.run_store_migrate")
 @patch("install.subprocess.run")
 @patch("install.write_missing_env_vars")
@@ -538,18 +575,23 @@ def test_run_install_writes_hf_format_llm_model_when_gpu_detected(
 @patch("install.check_docker")
 def test_run_install_does_not_write_llm_model_when_no_gpu(
     mock_check_docker, mock_check_ram, mock_write_env,
-    mock_subprocess_run, mock_run_store_migrate, mock_session_local, mock_ensure_admin, mock_healthcheck,
+    mock_subprocess_run, mock_run_store_migrate, mock_healthcheck,
     mock_wait_for_postgres, mock_check_gpu,
 ):
     # Non-GPU path must be provably unchanged: no LLM_MODEL key written at
     # all, leaving rag/config.py's own "qwen2.5:7b" class-level default (an
     # Ollama-format tag, correct for Ollama) in effect untouched.
     mock_check_gpu.return_value = False
-    mock_session_local.return_value = MagicMock()
-    mock_ensure_admin.return_value = None
 
     import install
     install.run_install()
 
-    written_values = mock_write_env.call_args.args[1]
+    # First call is always the main secrets batch, unconditionally -- a
+    # possible second DATABASE_URL-only write (see
+    # test_run_install_writes_database_url_to_env_before_alembic_subprocess)
+    # only fires when POSTGRES_PASSWORD is already readable from .env, which
+    # depends on whether this test happens to run against a repo checkout
+    # that already has a real .env. Indexing the first call keeps this
+    # assertion deterministic either way.
+    written_values = mock_write_env.call_args_list[0].args[1]
     assert "LLM_MODEL" not in written_values

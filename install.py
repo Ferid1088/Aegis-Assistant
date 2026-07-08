@@ -1,14 +1,14 @@
-"""Installer: takes a fresh Docker-equipped machine to a running, migrated appliance
-with a first admin account. Every step is idempotent -- re-running this script never
-regenerates an existing secret, never creates a second admin, and never fails merely
-because a prior run already completed that step.
+"""Installer: takes a fresh Docker-equipped machine to a running, migrated appliance.
+Every step is idempotent -- re-running this script never regenerates an existing
+secret and never fails merely because a prior run already completed that step. The
+first admin account is created separately, via the web UI's setup wizard shown on
+first visit when no admin exists yet (see rag/api/routers/setup.py).
 """
 
 import subprocess
 from pathlib import Path
 
 from rag.bootstrap.env_writer import read_env_value, write_missing_env_vars
-from rag.bootstrap.first_admin import ensure_first_admin
 from rag.bootstrap.glitchtip_db import ensure_glitchtip_database
 from rag.bootstrap.prereqs import check_docker, check_gpu, check_ram
 from rag.bootstrap.secrets_gen import (
@@ -19,7 +19,7 @@ from rag.bootstrap.tls_cert import ensure_tls_certificate
 from rag.bootstrap.wait_for_postgres import wait_for_postgres_ready
 from rag.config import settings
 from rag.healthcheck import main as healthcheck_main
-from rag.infra.stores.sql.base import SessionLocal, reset_engine
+from rag.infra.stores.sql.base import reset_engine
 
 import run_store_migrate
 
@@ -127,6 +127,7 @@ def run_install() -> None:
     if postgres_password:
         settings.database_url = f"postgresql+psycopg://postgres:{postgres_password}@localhost:5432/appliance"
         reset_engine()
+        write_missing_env_vars(env_path, {"DATABASE_URL": settings.database_url})
 
     print("== Starting services ==")
     # Must exist before `docker compose up` touches it: on Linux, dockerd (running
@@ -159,23 +160,6 @@ def run_install() -> None:
     print("== Running migrations ==")
     subprocess.run(["alembic", "upgrade", "head"], check=True)
     run_store_migrate.main()
-
-    print("== Creating first admin ==")
-    db = SessionLocal()
-    try:
-        result = ensure_first_admin(db)
-    finally:
-        db.close()
-
-    if result is not None:
-        username, password = result
-        print("=" * 60)
-        print("SAVE THIS NOW -- it will not be shown again:")
-        print(f"  username: {username}")
-        print(f"  password: {password}")
-        print("=" * 60)
-    else:
-        print("Admin account already exists, skipping.")
 
     print("== Verifying health ==")
     # A fresh vLLM install may still be downloading/loading its model here and
