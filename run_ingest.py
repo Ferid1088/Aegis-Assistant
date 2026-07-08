@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-from rag.graphs.ingestion import build_ingestion_graph
+from rag.pipelines.ingestion.graph import build_ingestion_graph
 
 
 def main():

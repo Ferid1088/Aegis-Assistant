@@ -1,62 +1,22 @@
-"""Ingestion pipeline: PDF → Docling → chunks → dense+sparse embeddings → Qdrant."""
+"""Ingestion pipeline nodes — convert, chunk_and_index, extract_graph_artifacts."""
 
-import atexit
 import hashlib
 import json
 import re
 import uuid
 from itertools import islice
 from pathlib import Path
-from typing import NotRequired, TypedDict
 
 from docling.chunking import HybridChunker
 from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.doc.labels import DocItemLabel
-from langgraph.graph import END, START, StateGraph
 
 from rag.infra.docling import convert as convert_pdf
 from rag.config import settings
 from rag.domain.document_lifecycle import LogicalDocument, ProcessingState, resolve_identity
 from rag.infra.models.llm import get_embedder, get_sparse_embedder
 from rag.domain.models import BBox, ChunkRecord, DocumentMeta
-from rag.infra.stores.document_store import SQLiteDocumentStore
-from rag.infra.stores.vector_store import QdrantVectorStore, close_shared_vector_store, get_shared_vector_store
-
-_doc_store = None
-
-
-def _cleanup():
-    close_shared_vector_store()
-
-
-atexit.register(_cleanup)
-
-
-def _get_doc_store() -> SQLiteDocumentStore:
-    global _doc_store
-    if _doc_store is None:
-        _doc_store = SQLiteDocumentStore()
-    return _doc_store
-
-
-def _get_vec_store() -> QdrantVectorStore:
-    # Process-wide singleton (rag/infra/stores/vector_store.py) -- NOT a private one
-    # here, so ingestion (writes) and query (reads, rag/graphs/query.py) share
-    # the one open embedded-Qdrant handle a process is allowed to hold. See
-    # get_shared_vector_store()'s docstring for why a second, independent
-    # QdrantVectorStore() used to break any process that did both.
-    return get_shared_vector_store()
-
-
-class IngestionState(TypedDict):
-    file_path: str
-    doc_version: NotRequired[str]
-    doc_meta: NotRequired[DocumentMeta]
-    docling_path: NotRequired[str]
-    version_id: NotRequired[str]
-    indexed_count: NotRequired[int]
-    status: NotRequired[str]
-    error: NotRequired[str]
+from rag.pipelines.ingestion.state import IngestionState, _get_doc_store, _get_vec_store
 
 
 def _content_hash(path: Path) -> str:
@@ -512,17 +472,3 @@ def extract_graph_artifacts(state: IngestionState) -> dict:
         doc_store.activate_version(version_id)
 
     return {"status": "done"}
-
-
-# ── Graph ────────────────────────────────────────────────────────────────
-
-def build_ingestion_graph():
-    g = StateGraph(IngestionState)
-    g.add_node("convert", convert)
-    g.add_node("chunk_and_index", chunk_and_index)
-    g.add_node("extract_graph_artifacts", extract_graph_artifacts)
-    g.add_edge(START, "convert")
-    g.add_edge("convert", "chunk_and_index")
-    g.add_edge("chunk_and_index", "extract_graph_artifacts")
-    g.add_edge("extract_graph_artifacts", END)
-    return g.compile()

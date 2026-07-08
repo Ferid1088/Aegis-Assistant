@@ -159,7 +159,7 @@ _shared_vec_store_lock = threading.Lock()
 def get_shared_vector_store() -> QdrantVectorStore:
     """Process-wide QdrantVectorStore singleton.
 
-    rag/graphs/ingestion.py (writes, during ingestion) and
+    rag/pipelines/ingestion/nodes.py (writes, during ingestion) and
     rag/capabilities/search/search_service.SearchService (reads, during
     retrieval) used to each lazily create and cache their OWN separate
     QdrantVectorStore -- fine as long as a process only ever did ingestion OR

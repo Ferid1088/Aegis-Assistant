@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 
 from rag.domain import ingestion_job_service
-from rag.graphs.ingestion import build_ingestion_graph
+from rag.pipelines.ingestion.graph import build_ingestion_graph
 from rag.infra.stores.sql.base import SessionLocal
 from rag.worker.celery_app import celery_app
 
