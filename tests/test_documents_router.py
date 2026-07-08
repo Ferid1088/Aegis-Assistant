@@ -329,3 +329,59 @@ def test_patch_metadata_clearing_department_requires_empty_access_level(client, 
     )
     assert resp.status_code == 200
     assert resp.json()["department"] is None
+
+
+def _add_second_permission(db_session, username, permission):
+    """_make_user_with_permission grants exactly one permission via one role;
+    these tests need a user with two, so this grants a second one the same way."""
+    role = Role(name=f"role-{permission}-{username}-2")
+    db_session.add(role)
+    db_session.flush()
+    db_session.add(RolePermission(role_id=role.id, permission=permission))
+    user = db_session.query(User).filter_by(username=username).one()
+    db_session.add(UserRole(user_id=user.id, role_id=role.id))
+    db_session.commit()
+
+
+@patch("rag.api.routers.documents.run_ingestion")
+def test_upload_with_metadata_by_manager(mock_task, client, db_session):
+    dept = _make_department(db_session)
+    _make_access_level(db_session, dept)
+    _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
+    _add_second_permission(db_session, "alice", "documents:manage_versions")
+
+    resp = client.post(
+        "/api/v1/documents",
+        files={"file": ("a.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        data={"department": "Finance", "access_level": "FIN_L1"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 202
+
+
+@patch("rag.api.routers.documents.run_ingestion")
+def test_upload_with_metadata_rejected_without_manage_permission(mock_task, client, db_session):
+    _make_department(db_session)
+    _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
+
+    resp = client.post(
+        "/api/v1/documents",
+        files={"file": ("a.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        data={"department": "Finance"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+@patch("rag.api.routers.documents.run_ingestion")
+def test_upload_with_unknown_department_404s(mock_task, client, db_session):
+    _, token = _make_user_with_permission(db_session, "alice", "documents:manage_versions")
+    _add_second_permission(db_session, "alice", "documents:upload")
+
+    resp = client.post(
+        "/api/v1/documents",
+        files={"file": ("a.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        data={"department": "NoSuchDept"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404

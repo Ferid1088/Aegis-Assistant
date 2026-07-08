@@ -127,6 +127,9 @@ def upload_document(
     request: Request,
     file: UploadFile,
     logical_doc_id: str | None = Form(default=None),
+    department: str | None = Form(default=None),
+    document_type: str | None = Form(default=None),
+    access_level: list[str] = Form(default=[]),
     current: AuthenticatedUser = Depends(require_permission("documents:upload")),
     db: Session = Depends(get_db),
 ) -> JobResponse:
@@ -155,11 +158,20 @@ def upload_document(
                 raise HTTPException(status_code=403, detail="not authorized to manage this document")
             if "documents:manage_versions" not in current.auth_subject.permissions:
                 raise HTTPException(status_code=403, detail="missing permission: documents:manage_versions")
+            # Attaching a new version never changes the logical document's metadata.
+            department, document_type, access_level = None, None, []
+        elif department or document_type or access_level:
+            if "documents:manage_versions" not in current.auth_subject.permissions:
+                raise HTTPException(status_code=403, detail="missing permission: documents:manage_versions")
+            department, document_type, access_level = _resolve_metadata(
+                db, department=department, document_type=document_type, access_level=access_level,
+            )
 
         job = ingestion_job_service.create_job(
             db, uploaded_by=current.user.id, filename=file.filename or "upload.pdf",
             staged_path=str(staged_path), doc_version=None,
             target_logical_doc_id=logical_doc_id,
+            department=department, document_type=document_type, access_level=access_level,
         )
         run_ingestion.delay(str(job.id))
     except Exception:
