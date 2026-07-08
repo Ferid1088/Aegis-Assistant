@@ -17,7 +17,7 @@ from langgraph.graph import END, START, StateGraph
 from rag.convert_pdf import convert as convert_pdf
 from rag.config import settings
 from rag.domain.document_lifecycle import LogicalDocument, ProcessingState, resolve_identity
-from rag.llm.provider import get_embedder, get_sparse_embedder
+from rag.infra.models.llm import get_embedder, get_sparse_embedder
 from rag.models import BBox, ChunkRecord, DocumentMeta
 from rag.infra.stores.document_store import SQLiteDocumentStore
 from rag.infra.stores.vector_store import QdrantVectorStore, close_shared_vector_store, get_shared_vector_store

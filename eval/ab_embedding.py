@@ -59,7 +59,7 @@ def _run_variant(variant: dict, gold: list[dict]) -> dict:
 
     # Force reload of cached singletons
     import importlib
-    import rag.llm.provider as prov
+    import rag.infra.models.llm as prov
     prov.get_embedder.cache_clear()
     importlib.reload(prov)
 
@@ -96,7 +96,7 @@ def _run_variant(variant: dict, gold: list[dict]) -> dict:
         "question": questions, "answer": answers,
         "contexts": contexts_list, "ground_truth": ground_truths,
     })
-    from rag.llm.provider import get_llm, get_embedder
+    from rag.infra.models.llm import get_llm, get_embedder
 
     class _EmbAdapter:
         def __init__(self, e): self._e = e

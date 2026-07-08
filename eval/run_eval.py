@@ -42,7 +42,7 @@ from ragas.metrics import (
 )
 
 from rag.graphs.query import build_query_graph
-from rag.llm.provider import get_llm
+from rag.infra.models.llm import get_llm
 
 GOLDEN_PATH = Path("eval/golden_set.jsonl")
 RESULTS_DIR = Path("eval/results")
@@ -120,7 +120,7 @@ def main():
     llm = get_llm()
     wrapped_llm = LangchainLLMWrapper(llm)
 
-    from rag.llm.provider import get_embedder
+    from rag.infra.models.llm import get_embedder
     wrapped_emb = LangchainEmbeddingsWrapper(_EmbeddingAdapter(get_embedder()))
 
     result = evaluate(

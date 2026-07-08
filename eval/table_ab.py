@@ -25,7 +25,7 @@ from qdrant_client import QdrantClient, models as qm
 from sentence_transformers import CrossEncoder
 
 from rag.config import settings
-from rag.llm.provider import get_device, get_embedder, get_llm, get_sparse_embedder
+from rag.infra.models.llm import get_device, get_embedder, get_llm, get_sparse_embedder
 from rag.models import RetrievedChunk
 
 GOLD_PATH = Path("eval/table_gold.jsonl")

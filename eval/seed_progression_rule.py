@@ -8,7 +8,7 @@ rule overrides it). This script inserts it as a structured, computable rule chun
 import json
 import uuid
 
-from rag.llm.provider import get_embedder, get_sparse_embedder
+from rag.infra.models.llm import get_embedder, get_sparse_embedder
 from rag.models import ChunkRecord, Computation, ComputationStep
 from rag.infra.stores.vector_store import QdrantVectorStore
 

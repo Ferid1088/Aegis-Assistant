@@ -2,7 +2,7 @@ from sqlalchemy import text
 
 from rag.capabilities.cache import get_redis
 from rag.config import settings
-from rag.llm.provider import get_llm, get_embedder, get_device
+from rag.infra.models.llm import get_llm, get_embedder, get_device
 from rag.infra.stores.sql.base import SessionLocal
 
 

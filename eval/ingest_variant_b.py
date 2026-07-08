@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from qdrant_client import QdrantClient, models as qm
 
 from rag.config import settings
-from rag.llm.provider import get_embedder, get_sparse_embedder
+from rag.infra.models.llm import get_embedder, get_sparse_embedder
 from rag.models import ChunkRecord
 
 

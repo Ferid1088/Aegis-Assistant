@@ -34,7 +34,7 @@ _AMOUNT_RE = re.compile(r"\b(verdient|entgelt|gehalt|vergütung|salary|amount)\b
 
 
 def _llm_rewrite(question: str, history: list[dict]) -> str:
-    from rag.llm.provider import get_llm
+    from rag.infra.models.llm import get_llm
     recent = history[-5:]
     lines: list[str] = []
     for t in recent:

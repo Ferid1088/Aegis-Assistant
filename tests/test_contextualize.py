@@ -54,6 +54,6 @@ def test_llm_rewrite_exception_falls_back_to_original():
     """If LLM raises, _llm_rewrite returns the original question unchanged."""
     from rag.capabilities.contextualize import _llm_rewrite
     # get_llm is a local import inside _llm_rewrite; patch it at source
-    with patch("rag.llm.provider.get_llm", side_effect=RuntimeError("offline")):
+    with patch("rag.infra.models.llm.get_llm", side_effect=RuntimeError("offline")):
         result = _llm_rewrite("und das?", [{"standalone_question": "Was ist X?"}])
     assert result == "und das?"
