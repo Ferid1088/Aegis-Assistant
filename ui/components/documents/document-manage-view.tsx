@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { LogicalDocument } from "@/types";
+import { useEffect, useMemo, useState } from "react";
+import type { AccessLevel, Department, DocumentType, LogicalDocument } from "@/types";
 import { useApi } from "@/hooks/use-api";
 import { Button, Card, EmptyState, PageTitle, Pill } from "@/components/ui/primitives";
 import { UploadPanel } from "./upload-panel";
@@ -22,8 +22,11 @@ type RawDocumentDetail = {
     id: string;
     title: string;
     department: string | null;
+    department_id: string | null;
     access_level: string | null;
+    access_level_ids: string[];
     document_type: string | null;
+    document_type_id: string | null;
     project: string | null;
     phase: string | null;
     upload_date: string;
@@ -56,6 +59,7 @@ function toDocument(raw: RawDocumentDetail): LogicalDocument {
 export function DocumentManageView({ docId }: { docId: string }) {
     const { data, loading, error, reload } = useApi<RawDocumentDetail>(`/documents/${docId}`);
     const [showUpload, setShowUpload] = useState(false);
+    const [showEdit, setShowEdit] = useState(false);
     const document = useMemo(() => (data ? toDocument(data) : null), [data]);
 
     async function activate(versionId: string, versionNo: number) {
@@ -74,9 +78,13 @@ export function DocumentManageView({ docId }: { docId: string }) {
         <div className="mx-auto max-w-5xl p-6">
             <div className="flex items-start justify-between gap-4">
                 <PageTitle sub="Review metadata, inspect versions, and activate a different version.">{document.title}</PageTitle>
-                {data.can_manage ? <Button onClick={() => setShowUpload((value) => !value)}>{showUpload ? "Hide version upload" : "Upload new version"}</Button> : null}
+                <div className="flex gap-2">
+                    {data.can_manage ? <Button onClick={() => setShowEdit((value) => !value)}>{showEdit ? "Hide edit metadata" : "Edit metadata"}</Button> : null}
+                    {data.can_manage ? <Button onClick={() => setShowUpload((value) => !value)}>{showUpload ? "Hide version upload" : "Upload new version"}</Button> : null}
+                </div>
             </div>
 
+            {showEdit ? <EditMetadataForm docId={docId} detail={data} onDone={() => { setShowEdit(false); reload(); }} /> : null}
             {showUpload ? <UploadPanel onDone={reload} documents={[document]} defaultLogicalDocId={docId} /> : null}
 
             <Card className="mb-6 p-5">
@@ -127,6 +135,114 @@ export function DocumentManageView({ docId }: { docId: string }) {
                 </table>
             </Card>
         </div>
+    );
+}
+
+function EditMetadataForm({ docId, detail, onDone }: { docId: string; detail: RawDocumentDetail; onDone: () => void }) {
+    const [title, setTitle] = useState(detail.title);
+    const [departmentId, setDepartmentId] = useState(detail.department_id ?? "");
+    const [documentTypeId, setDocumentTypeId] = useState(detail.document_type_id ?? "");
+    const [accessLevelIds, setAccessLevelIds] = useState<string[]>(detail.access_level_ids ?? []);
+    const [pending, setPending] = useState(false);
+
+    const { data: departments } = useApi<Department[]>("/admin/departments");
+    const { data: documentTypes } = useApi<DocumentType[]>("/admin/document-types");
+    const { data: accessLevels } = useApi<AccessLevel[]>(
+        departmentId ? `/admin/departments/${departmentId}/access-levels` : null
+    );
+
+    useEffect(() => {
+        if (departmentId !== (detail.department_id ?? "")) {
+            setAccessLevelIds([]);
+        }
+        // Only reset when the department actually changes away from the document's
+        // current one -- otherwise the initial pre-filled selection would be wiped
+        // by this same effect running on mount.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [departmentId]);
+
+    function toggleAccessLevel(id: string) {
+        setAccessLevelIds((current) =>
+            current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id]
+        );
+    }
+
+    async function submit() {
+        setPending(true);
+        try {
+            await fetch(`/api/v1/documents/${docId}/metadata`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    title, department_id: departmentId, document_type_id: documentTypeId,
+                    access_level_ids: accessLevelIds,
+                }),
+            });
+            onDone();
+        } finally {
+            setPending(false);
+        }
+    }
+
+    return (
+        <Card className="mb-6 p-5">
+            <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-1 text-[12px] text-inkSoft">
+                    Title
+                    <input
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink"
+                    />
+                </label>
+                <label className="flex flex-col gap-1 text-[12px] text-inkSoft">
+                    Department
+                    <select
+                        value={departmentId}
+                        onChange={(e) => setDepartmentId(e.target.value)}
+                        className="rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink"
+                    >
+                        <option value="">Select a department…</option>
+                        {(departments ?? []).map((dept) => (
+                            <option key={dept.id} value={dept.id}>{dept.name}</option>
+                        ))}
+                    </select>
+                </label>
+                <label className="flex flex-col gap-1 text-[12px] text-inkSoft">
+                    Document type
+                    <select
+                        value={documentTypeId}
+                        onChange={(e) => setDocumentTypeId(e.target.value)}
+                        className="rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink"
+                    >
+                        <option value="">Select a document type…</option>
+                        {(documentTypes ?? []).map((dtype) => (
+                            <option key={dtype.id} value={dtype.id}>{dtype.label}</option>
+                        ))}
+                    </select>
+                </label>
+                <div className="flex flex-col gap-1 text-[12px] text-inkSoft">
+                    Access level
+                    <div className="flex flex-col gap-1 rounded-md border border-line bg-canvas px-3 py-2">
+                        {(accessLevels ?? []).map((level) => (
+                            <label key={level.id} className="flex items-center gap-2 text-sm text-ink">
+                                <input
+                                    type="checkbox"
+                                    checked={accessLevelIds.includes(level.id)}
+                                    onChange={() => toggleAccessLevel(level.id)}
+                                />
+                                {level.label}
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            </div>
+            <div className="mt-4">
+                <Button onClick={submit} disabled={pending || !title.trim() || !departmentId || !documentTypeId || accessLevelIds.length === 0}>
+                    {pending ? "Saving…" : "Save metadata"}
+                </Button>
+            </div>
+        </Card>
     );
 }
 
