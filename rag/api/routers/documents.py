@@ -3,11 +3,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user, require_permission
 from rag.api.schemas.documents import (
     ActivateVersionRequest,
+    DocumentMetadataUpdate,
     JobResponse,
     JobStatusResponse,
     LogicalDocumentDetailResponse,
@@ -22,6 +24,7 @@ from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import ingestion_job_service
 from rag.infra.stores.document_store import SQLiteDocumentStore
 from rag.infra.stores.sql.base import get_db
+from rag.infra.stores.sql.models import AccessLevel, Department, DocumentType
 from rag.worker.tasks import run_ingestion
 
 router = APIRouter()
@@ -88,6 +91,34 @@ def _get_document_or_404(store: SQLiteDocumentStore, logical_doc_id: str):
     if doc is None:
         raise HTTPException(status_code=404, detail="document not found")
     return doc
+
+
+def _resolve_metadata(
+    db: Session, *, department: str | None, document_type: str | None, access_level: list[str],
+) -> tuple[str | None, str | None, list[str]]:
+    dept_row = None
+    if department is not None:
+        dept_row = db.execute(select(Department).where(Department.name == department)).scalar_one_or_none()
+        if dept_row is None:
+            raise HTTPException(status_code=404, detail="department not found")
+
+    if document_type is not None:
+        dt_row = db.execute(select(DocumentType).where(DocumentType.label == document_type)).scalar_one_or_none()
+        if dt_row is None:
+            raise HTTPException(status_code=404, detail="document type not found")
+
+    if access_level and dept_row is None:
+        raise HTTPException(status_code=422, detail="access_level requires a department")
+
+    if access_level:
+        valid_labels = set(
+            db.execute(select(AccessLevel.label).where(AccessLevel.department_id == dept_row.id)).scalars().all()
+        )
+        invalid = sorted(set(access_level) - valid_labels)
+        if invalid:
+            raise HTTPException(status_code=422, detail=f"invalid access level(s) for department: {invalid}")
+
+    return department, document_type, access_level
 
 
 @router.post("", response_model=JobResponse, status_code=202)
@@ -183,6 +214,35 @@ def get_document(
         doc,
         can_manage="documents:manage_versions" in current.auth_subject.permissions,
     )
+
+
+@router.patch("/{logical_doc_id}", response_model=LogicalDocumentDetailResponse)
+def update_document_metadata(
+    logical_doc_id: str,
+    body: DocumentMetadataUpdate,
+    current: AuthenticatedUser = Depends(require_permission("documents:manage_versions")),
+    db: Session = Depends(get_db),
+) -> LogicalDocumentDetailResponse:
+    store = SQLiteDocumentStore()
+    doc = _get_document_or_404(store, logical_doc_id)
+    if not _doc_allowed(doc, current):
+        raise HTTPException(status_code=404, detail="document not found")
+
+    fields_set = body.model_fields_set
+    department = body.department if "department" in fields_set else doc.department
+    document_type = body.document_type if "document_type" in fields_set else doc.document_type
+    access_level = (body.access_level or []) if "access_level" in fields_set else list(doc.access_level)
+
+    if department is None and access_level:
+        raise HTTPException(status_code=422, detail="clear access_level before clearing department")
+
+    department, document_type, access_level = _resolve_metadata(
+        db, department=department, document_type=document_type, access_level=access_level,
+    )
+
+    store.update_logical_document_metadata(logical_doc_id, department, document_type, access_level)
+    updated = _get_document_or_404(store, logical_doc_id)
+    return _document_response(store, updated, can_manage=True)
 
 
 @router.patch("/{logical_doc_id}/versions/{version_id}", response_model=LogicalDocumentDetailResponse)

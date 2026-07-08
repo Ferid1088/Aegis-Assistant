@@ -50,6 +50,12 @@ class ActivateVersionRequest(BaseModel):
     version_no: int | None = None
 
 
+class DocumentMetadataUpdate(BaseModel):
+    department: str | None = None
+    document_type: str | None = None
+    access_level: list[str] | None = None
+
+
 class SearchRequest(BaseModel):
     query: str
     mode: str = "deep"
