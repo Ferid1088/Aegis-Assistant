@@ -3,20 +3,28 @@
 import { useState } from "react";
 import type { LogicalDocument } from "@/types";
 import { Button, Card } from "@/components/ui/primitives";
+import { DocumentMetadataFields, type DocumentMetadataValue } from "./document-metadata-fields";
+
+const EMPTY_METADATA: DocumentMetadataValue = { department: "", documentType: "", accessLevel: [] };
 
 export function UploadPanel({
     onDone,
     documents,
     defaultLogicalDocId,
+    canManage,
 }: {
     onDone: () => void;
     documents: LogicalDocument[];
     defaultLogicalDocId?: string;
+    canManage: boolean;
 }) {
     const [file, setFile] = useState<File | null>(null);
     const [logicalDocId, setLogicalDocId] = useState(defaultLogicalDocId ?? "");
+    const [metadata, setMetadata] = useState<DocumentMetadataValue>(EMPTY_METADATA);
     const [pending, setPending] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
+
+    const isNewDocument = !logicalDocId;
 
     async function submit() {
         if (!file) return;
@@ -26,6 +34,11 @@ export function UploadPanel({
             const form = new FormData();
             form.append("file", file);
             if (logicalDocId) form.append("logical_doc_id", logicalDocId);
+            if (isNewDocument) {
+                if (metadata.department) form.append("department", metadata.department);
+                if (metadata.documentType) form.append("document_type", metadata.documentType);
+                metadata.accessLevel.forEach((level) => form.append("access_level", level));
+            }
             const res = await fetch("/api/v1/documents", { method: "POST", body: form });
             if (!res.ok) {
                 const detail = await res.text();
@@ -35,6 +48,7 @@ export function UploadPanel({
             setStatus("Queued for processing.");
             setFile(null);
             setLogicalDocId(defaultLogicalDocId ?? "");
+            setMetadata(EMPTY_METADATA);
             onDone();
         } catch {
             setStatus("Upload failed.");
@@ -71,6 +85,11 @@ export function UploadPanel({
                     </select>
                 </label>
             </div>
+            {isNewDocument ? (
+                <div className="mt-4">
+                    <DocumentMetadataFields value={metadata} onChange={setMetadata} disabled={!canManage} />
+                </div>
+            ) : null}
             <div className="mt-4 flex items-center gap-3">
                 <Button onClick={submit} disabled={!file || pending}>{pending ? "Uploading…" : "Upload"}</Button>
                 {status ? <span className="text-[12px] text-inkSoft">{status}</span> : null}
