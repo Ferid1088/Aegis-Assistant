@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from rag.models import RetrievedChunk
+from rag.domain.models import RetrievedChunk
 
 
 def _make_chunk(chunk_id: str, score: float) -> RetrievedChunk:

@@ -19,7 +19,7 @@ def test_generate_impl_records_answered(monkeypatch):
 
     monkeypatch.setattr(qmod, "get_llm", lambda: FakeLLM())
 
-    from rag.models import RetrievedChunk
+    from rag.domain.models import RetrievedChunk
     from rag.crosscutting.context import Context
 
     chunks = [RetrievedChunk(chunk_id="c1", content="text", score=0.9,
@@ -48,7 +48,7 @@ def test_generate_impl_records_declined(monkeypatch):
 
     monkeypatch.setattr(qmod, "get_llm", lambda: FakeLLM())
 
-    from rag.models import RetrievedChunk
+    from rag.domain.models import RetrievedChunk
     from rag.crosscutting.context import Context
 
     chunks = [RetrievedChunk(chunk_id="c1", content="text", score=0.9,
@@ -102,7 +102,7 @@ def test_generate_impl_records_fallback(monkeypatch):
 
     monkeypatch.setattr(qmod, "get_llm", lambda: FakeLLM())
 
-    from rag.models import RetrievedChunk
+    from rag.domain.models import RetrievedChunk
     from rag.crosscutting.context import Context
 
     chunks = [RetrievedChunk(chunk_id="c1", content="text", score=0.9,

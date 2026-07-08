@@ -42,7 +42,7 @@ def test_get_reranker_no_fp16_by_default():
 def test_rerank_impl_uses_batch_size():
     """_rerank_impl passes batch_size to predict()."""
     import rag.graphs.query as q
-    from rag.models import RetrievedChunk
+    from rag.domain.models import RetrievedChunk
 
     chunk = RetrievedChunk(
         chunk_id="c1", content="text", score=0.5,

@@ -140,7 +140,7 @@ def test_set_processing_state():
 
 def test_existing_register_exists_mark_superseded_unaffected():
     """Backward compatibility: the original 02 flow must still work unchanged."""
-    from rag.models import DocumentMeta
+    from rag.domain.models import DocumentMeta
 
     store, db_path = _store()
     try:

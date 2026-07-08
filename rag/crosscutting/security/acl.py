@@ -16,7 +16,7 @@ from pathlib import Path
 
 from rag.config import settings
 from rag.crosscutting.context import Context
-from rag.models import RetrievedChunk
+from rag.domain.models import RetrievedChunk
 
 
 def acl_filter(user_levels: list[str] | None) -> dict | None:

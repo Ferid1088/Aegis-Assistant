@@ -3,7 +3,7 @@ import threading
 from qdrant_client import QdrantClient, models as qm
 
 from rag.config import settings
-from rag.models import ChunkRecord, RetrievedChunk
+from rag.domain.models import ChunkRecord, RetrievedChunk
 from rag.infra.stores.base import VectorStore
 
 

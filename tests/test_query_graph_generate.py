@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
 from rag.graphs.query import _generate_impl, generate
-from rag.models import RetrievedChunk
+from rag.domain.models import RetrievedChunk
 
 
 def _fake_llm(content: str) -> MagicMock:

@@ -9,7 +9,7 @@ import json
 import uuid
 
 from rag.infra.models.llm import get_embedder, get_sparse_embedder
-from rag.models import ChunkRecord, Computation, ComputationStep
+from rag.domain.models import ChunkRecord, Computation, ComputationStep
 from rag.infra.stores.vector_store import QdrantVectorStore
 
 

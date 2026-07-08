@@ -23,7 +23,7 @@ def _docker_available() -> bool:
 @pytest.mark.skipif(not _docker_available(), reason="docker compose not available locally")
 def test_migration_copies_all_points_to_server(monkeypatch, tmp_path):
     from rag.config import settings
-    from rag.models import ChunkRecord
+    from rag.domain.models import ChunkRecord
     from rag.infra.stores.vector_store import QdrantVectorStore
 
     embedded_path = str(tmp_path / "qdrant-embedded")

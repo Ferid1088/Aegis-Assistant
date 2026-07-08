@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from rag.models import ChunkRecord, DocumentMeta, RetrievedChunk
+from rag.domain.models import ChunkRecord, DocumentMeta, RetrievedChunk
 
 
 class VectorStore(ABC):

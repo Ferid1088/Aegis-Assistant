@@ -22,7 +22,7 @@ from qdrant_client import QdrantClient, models as qm
 
 from rag.config import settings
 from rag.infra.models.llm import get_embedder, get_sparse_embedder
-from rag.models import ChunkRecord
+from rag.domain.models import ChunkRecord
 
 
 COLLECTION_B = settings.qdrant_collection + "_tabstruct"

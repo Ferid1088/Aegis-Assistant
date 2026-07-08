@@ -4,7 +4,7 @@ from rag.capabilities.answerability import (
     check_temporal_guard,
     classify,
 )
-from rag.models import RetrievedChunk
+from rag.domain.models import RetrievedChunk
 
 
 def _chunk(content: str, doc_version: str | None = None) -> RetrievedChunk:

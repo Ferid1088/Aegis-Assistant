@@ -10,7 +10,7 @@ from rag.crosscutting.security.acl import (
     live_recheck,
     type_filter,
 )
-from rag.models import RetrievedChunk
+from rag.domain.models import RetrievedChunk
 
 # Force enforce ON for these tests
 _original = settings.acl_enforce

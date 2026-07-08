@@ -9,7 +9,7 @@ import tempfile
 import uuid
 
 from rag.config import settings
-from rag.models import ChunkRecord
+from rag.domain.models import ChunkRecord
 from rag.infra.stores.vector_store import QdrantVectorStore
 
 
@@ -83,7 +83,7 @@ def test_logical_doc_id_round_trips_through_qdrant_payload():
 
 
 def test_chunk_record_has_is_current_field():
-    from rag.models import ChunkRecord
+    from rag.domain.models import ChunkRecord
     rec = ChunkRecord(
         chunk_id="abc",
         type="text",
@@ -99,7 +99,7 @@ def test_chunk_record_has_is_current_field():
 
 def test_upsert_includes_is_current(tmp_path):
     from unittest.mock import MagicMock, patch
-    from rag.models import ChunkRecord
+    from rag.domain.models import ChunkRecord
     from rag.infra.stores.vector_store import QdrantVectorStore
 
     rec = ChunkRecord(

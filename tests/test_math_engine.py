@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from rag.capabilities.math_engine import MathEngine, format_decimal_german, parse_decimal
 from rag.capabilities.resolve import resolve, resolve_chain
-from rag.models import Computation, ComputationStep, RuleArtifact
+from rag.domain.models import Computation, ComputationStep, RuleArtifact
 
 
 def _progression_rule() -> RuleArtifact:

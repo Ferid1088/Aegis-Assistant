@@ -16,7 +16,7 @@ from typing import Any
 from rag.capabilities.math_engine import parse_decimal
 from rag.crosscutting.context import Context
 from rag.crosscutting.observability.tracing import set_span_attribute, traced
-from rag.models import Computation, ComputationStep, Predicate, RetrievedChunk, RuleArtifact
+from rag.domain.models import Computation, ComputationStep, Predicate, RetrievedChunk, RuleArtifact
 
 _GRADE_RE = re.compile(r"\b(E\s?\d+|KR\s?\d+[a-zA-Z]?)\b", re.IGNORECASE)
 _YEARS_RE = re.compile(r"(\d+)\s*(?:Jahre|Jahren|years)\b", re.IGNORECASE)

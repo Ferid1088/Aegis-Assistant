@@ -25,7 +25,7 @@ import rag.crosscutting.observability.tracing as _tracing
 from rag.crosscutting.observability.tracing import traced
 from rag.crosscutting.security.acl import acl_filter, live_recheck, log_retrieval_audit, type_filter
 from rag.infra.models.llm import get_device, get_llm
-from rag.models import RetrievedChunk
+from rag.domain.models import RetrievedChunk
 from rag.infra.stores.vector_store import get_shared_vector_store
 
 

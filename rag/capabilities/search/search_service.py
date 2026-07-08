@@ -8,7 +8,7 @@ from rag.config import settings
 from rag.crosscutting.context import Context
 from rag.crosscutting.observability.tracing import traced
 from rag.infra.models.llm import get_embedder, get_sparse_embedder
-from rag.models import RetrievedChunk
+from rag.domain.models import RetrievedChunk
 from rag.infra.stores.vector_store import QdrantVectorStore
 
 

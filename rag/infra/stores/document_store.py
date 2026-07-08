@@ -10,7 +10,7 @@ from rag.domain.document_lifecycle import (
     LogicalDocumentState,
     ProcessingState,
 )
-from rag.models import DocumentMeta
+from rag.domain.models import DocumentMeta
 from rag.infra.stores.base import DocumentStore
 
 

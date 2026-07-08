@@ -9,7 +9,7 @@ import uuid
 from rag.crosscutting.context import Context
 from rag.crosscutting.observability.tracing import traced
 from rag.infra.models.llm import get_extraction_llm
-from rag.models import ChunkRecord, RuleArtifact
+from rag.domain.models import ChunkRecord, RuleArtifact
 
 RELATIONS = [
     "eingruppiert_in", "gehoert_zu", "erfordert", "monatsentgelt",

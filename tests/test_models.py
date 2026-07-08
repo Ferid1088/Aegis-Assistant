@@ -1,4 +1,4 @@
-from rag.models import ChunkRecord, DocumentMeta
+from rag.domain.models import ChunkRecord, DocumentMeta
 
 
 def test_chunk_record_logical_doc_id_defaults_to_none():

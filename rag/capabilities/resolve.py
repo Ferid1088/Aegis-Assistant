@@ -17,7 +17,7 @@ from typing import Any
 from rag.capabilities.math_engine import MathEngine, MathError, parse_decimal
 from rag.crosscutting.context import Context
 from rag.crosscutting.observability.tracing import traced
-from rag.models import Computation, RuleArtifact
+from rag.domain.models import Computation, RuleArtifact
 
 
 @dataclass

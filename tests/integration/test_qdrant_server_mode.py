@@ -37,7 +37,7 @@ def test_server_mode_matches_embedded_behavior(monkeypatch, tmp_path):
 
     from rag.config import settings
     from rag.infra.stores.vector_store import QdrantVectorStore
-    from rag.models import ChunkRecord
+    from rag.domain.models import ChunkRecord
 
     monkeypatch.setattr(settings, "qdrant_url", "http://localhost:6333")
     monkeypatch.setattr(settings, "qdrant_collection", "test_server_mode_8_10a")
