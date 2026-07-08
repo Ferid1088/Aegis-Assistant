@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
@@ -49,6 +49,8 @@ class SessionUser(BaseModel):
 
 
 class SessionNav(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     chat: bool
     search: bool
     documents: bool
@@ -56,6 +58,7 @@ class SessionNav(BaseModel):
     evaluation: bool
     audit: bool
     system: bool
+    documents_manage: bool = Field(alias="documentsManage")
 
 
 class SessionResponse(BaseModel):

@@ -90,6 +90,7 @@ def get_session(
 
     role = current.auth_subject.roles[0] if current.auth_subject.roles else "—"
     is_admin = any(p.startswith("admin:") for p in current.auth_subject.permissions)
+    documents_manage = "documents:manage_versions" in current.auth_subject.permissions
 
     return SessionResponse(
         user=SessionUser(
@@ -104,5 +105,6 @@ def get_session(
         nav=SessionNav(
             chat=True, search=True, documents=True,
             admin=is_admin, evaluation=is_admin, audit=is_admin, system=is_admin,
+            documents_manage=documents_manage,
         ),
     )

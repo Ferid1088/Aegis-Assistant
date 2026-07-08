@@ -1,5 +1,6 @@
 import pyotp
 import pytest
+from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
@@ -7,9 +8,35 @@ from sqlalchemy.pool import StaticPool
 
 from rag.api.main import create_app
 from rag.crosscutting.security.password import hash_password
+from rag.crosscutting.security.tokens import create_access_token
 from rag.infra.stores.sql import models  # noqa: F401
 from rag.infra.stores.sql.base import Base, get_db
-from rag.infra.stores.sql.models import Department, Role, RolePermission, User, UserRole
+from rag.infra.stores.sql.models import Department, Role, RolePermission, User, UserRole, UserSession
+
+
+def _make_user_with_token(db_session, username):
+    user = User(username=username)
+    db_session.add(user)
+    db_session.flush()
+    session = UserSession(
+        user_id=user.id, issued_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    db_session.add(session)
+    db_session.commit()
+    token = create_access_token(str(user.id), str(session.id), user.token_version)
+    return user, token
+
+
+def _make_user_with_permission(db_session, username, permission):
+    user, token = _make_user_with_token(db_session, username)
+    role = Role(name=f"role-{permission}-{username}")
+    db_session.add(role)
+    db_session.flush()
+    db_session.add(RolePermission(role_id=role.id, permission=permission))
+    db_session.add(UserRole(user_id=user.id, role_id=role.id))
+    db_session.commit()
+    return user, token
 
 
 @pytest.fixture()
@@ -125,6 +152,7 @@ def test_session_endpoint_for_plain_user_has_no_admin_nav(client):
     assert body["nav"] == {
         "chat": True, "search": True, "documents": True,
         "admin": False, "evaluation": False, "audit": False, "system": False,
+        "documentsManage": False,
     }
 
 
@@ -153,6 +181,7 @@ def test_session_endpoint_grants_admin_nav_for_admin_permission(client_with_db):
     assert body["nav"] == {
         "chat": True, "search": True, "documents": True,
         "admin": True, "evaluation": True, "audit": True, "system": True,
+        "documentsManage": False,
     }
 
 
@@ -161,3 +190,19 @@ def test_session_endpoint_requires_auth():
     unauth_client = TestClient(_create_app(), raise_server_exceptions=False)
     resp = unauth_client.get("/api/v1/session")
     assert resp.status_code == 401
+
+
+def test_session_reports_documents_manage_true_when_granted(client_with_db):
+    client, db = client_with_db
+    _, token = _make_user_with_permission(db, "charlie", "documents:manage_versions")
+    resp = client.get("/api/v1/session", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["nav"]["documentsManage"] is True
+
+
+def test_session_reports_documents_manage_false_when_not_granted(client_with_db):
+    client, db = client_with_db
+    _, token = _make_user_with_token(db, "bob")
+    resp = client.get("/api/v1/session", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["nav"]["documentsManage"] is False
