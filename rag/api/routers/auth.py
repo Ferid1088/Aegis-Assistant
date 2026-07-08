@@ -7,9 +7,9 @@ from rag.api.schemas.auth import (
     LoginRequest, LoginResponse, MeResponse, MfaEnrollResponse, MfaVerifyRequest,
     RefreshRequest, RefreshResponse, SessionNav, SessionResponse, SessionUser,
 )
-from rag.crosscutting.security import local_auth, session_service
+from rag.auth import local_auth, session_service
 from rag.crosscutting.security.audit_events import record_mfa_enrolled
-from rag.crosscutting.security.mfa import encrypt_secret, generate_totp_secret, totp_uri
+from rag.auth.mfa import encrypt_secret, generate_totp_secret, totp_uri
 from rag.infra.stores.sql.base import get_db
 from rag.infra.stores.sql.models import Department
 

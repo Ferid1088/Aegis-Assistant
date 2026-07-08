@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from rag.config import settings
 from rag.crosscutting.security.audit_events import record_session_revoked
-from rag.crosscutting.security.time_utils import as_aware_utc
-from rag.crosscutting.security.tokens import create_access_token, generate_refresh_token, hash_refresh_token
+from rag.auth.time_utils import as_aware_utc
+from rag.auth.tokens import create_access_token, generate_refresh_token, hash_refresh_token
 from rag.infra.stores.sql.models import RefreshToken, User, UserSession
 
 

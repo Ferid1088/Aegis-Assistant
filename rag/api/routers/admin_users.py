@@ -10,9 +10,9 @@ from rag.api.deps import AuthenticatedUser, require_permission
 from rag.api.schemas.admin import (
     SessionResponse, UserCreate, UserLockRequest, UserResponse, UserRoleAssign, UserUpdate,
 )
-from rag.crosscutting.security import session_service
+from rag.auth import session_service
 from rag.crosscutting.security.audit_events import record_admin_change
-from rag.crosscutting.security.password import hash_password
+from rag.auth.password import hash_password
 from rag.infra.stores.sql.base import get_db
 from rag.infra.stores.sql.models import Department, Role, User, UserRole, UserSession
 

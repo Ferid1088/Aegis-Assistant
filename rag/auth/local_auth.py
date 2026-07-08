@@ -7,11 +7,11 @@ from sqlalchemy.orm import Session
 
 from rag.config import settings
 from rag.crosscutting.security import audit_events
-from rag.crosscutting.security.lockout import apply_failed_attempt, is_locked
-from rag.crosscutting.security.mfa import decrypt_secret, verify_totp
-from rag.crosscutting.security.password import verify_password
-from rag.crosscutting.security.time_utils import as_aware_utc
-from rag.crosscutting.security.tokens import create_access_token, create_mfa_pending_token, decode_token, generate_refresh_token
+from rag.auth.lockout import apply_failed_attempt, is_locked
+from rag.auth.mfa import decrypt_secret, verify_totp
+from rag.auth.password import verify_password
+from rag.auth.time_utils import as_aware_utc
+from rag.auth.tokens import create_access_token, create_mfa_pending_token, decode_token, generate_refresh_token
 from rag.infra.stores.sql.models import LoginAttempt, RefreshToken, User, UserSession
 
 

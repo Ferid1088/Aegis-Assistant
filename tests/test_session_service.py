@@ -3,9 +3,9 @@ import uuid
 import pytest
 
 from rag.config import settings
-from rag.crosscutting.security import local_auth, session_service
-from rag.crosscutting.security.password import hash_password
-from rag.crosscutting.security.tokens import decode_token, hash_refresh_token
+from rag.auth import local_auth, session_service
+from rag.auth.password import hash_password
+from rag.auth.tokens import decode_token, hash_refresh_token
 from rag.infra.stores.sql.models import RefreshToken, User, UserSession
 
 

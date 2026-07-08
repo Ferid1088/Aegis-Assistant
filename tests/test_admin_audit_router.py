@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 
 from rag.api.routers import admin_audit
 from rag.crosscutting.security.audit_events import record_admin_change
-from rag.crosscutting.security.password import hash_password
-from rag.crosscutting.security.tokens import create_access_token
+from rag.auth.password import hash_password
+from rag.auth.tokens import create_access_token
 from rag.infra.stores.sql.base import get_db
 from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole, UserSession
 

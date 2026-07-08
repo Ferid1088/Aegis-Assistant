@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from rag.config import settings
-from rag.crosscutting.security.lockout import apply_failed_attempt, is_locked
+from rag.auth.lockout import apply_failed_attempt, is_locked
 
 
 def test_is_locked_false_when_locked_until_is_none():

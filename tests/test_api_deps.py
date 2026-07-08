@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from rag.api.deps import get_current_user, require_permission
 from rag.config import settings
-from rag.crosscutting.security.tokens import ACCESS_ALGORITHM, create_access_token, create_mfa_pending_token
+from rag.auth.tokens import ACCESS_ALGORITHM, create_access_token, create_mfa_pending_token
 from rag.infra.stores.sql.base import get_db
 from rag.infra.stores.sql.models import User, UserSession, Role, RolePermission, UserRole
 

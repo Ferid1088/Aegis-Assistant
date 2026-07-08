@@ -1,7 +1,7 @@
 import jwt
 import pytest
 
-from rag.crosscutting.security.tokens import (
+from rag.auth.tokens import (
     create_access_token, create_mfa_pending_token, decode_token,
     generate_refresh_token, hash_refresh_token,
 )

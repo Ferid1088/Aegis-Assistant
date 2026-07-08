@@ -8,7 +8,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from rag.config import settings
-from rag.crosscutting.security.tokens import decode_token
+from rag.auth.tokens import decode_token
 
 
 def user_or_ip_key(request: Request) -> str:

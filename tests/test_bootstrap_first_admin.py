@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
 from rag.bootstrap.first_admin import ADMIN_PERMISSIONS, ensure_first_admin
-from rag.crosscutting.security.password import verify_password
+from rag.auth.password import verify_password
 from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole
 
 

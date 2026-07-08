@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from rag.api.routers import documents
 from rag.crosscutting.security.rate_limit import limiter
-from rag.crosscutting.security.tokens import create_access_token
+from rag.auth.tokens import create_access_token
 from rag.infra.stores.sql.base import get_db
 from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole, UserSession
 

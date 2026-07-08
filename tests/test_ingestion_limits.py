@@ -10,7 +10,7 @@ from rag.crosscutting.security.ingestion_limits import (
     check_and_increment_queued_ingestion, decrement_queued_ingestion,
 )
 from rag.crosscutting.security.rate_limit import limiter
-from rag.crosscutting.security.tokens import create_access_token
+from rag.auth.tokens import create_access_token
 from rag.infra.stores.sql.base import get_db
 from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole, UserSession
 

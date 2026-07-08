@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 
 from rag.api.deps import get_current_user
 from rag.api.routers import admin_users
-from rag.crosscutting.security.password import hash_password
-from rag.crosscutting.security.tokens import create_access_token
+from rag.auth.password import hash_password
+from rag.auth.tokens import create_access_token
 from rag.infra.stores.sql.base import get_db
 from rag.infra.stores.sql.models import Department, Role, RolePermission, User, UserRole, UserSession
 

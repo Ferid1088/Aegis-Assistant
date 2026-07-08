@@ -2,7 +2,7 @@ import pyotp
 import pytest
 from cryptography.fernet import Fernet
 
-from rag.crosscutting.security.mfa import (
+from rag.auth.mfa import (
     decrypt_secret, encrypt_secret, generate_totp_secret, totp_uri, verify_totp,
 )
 

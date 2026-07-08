@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from rag.api.main import create_app
-from rag.crosscutting.security.password import hash_password
+from rag.auth.password import hash_password
 from rag.crosscutting.security.rate_limit import user_or_ip_key
 from rag.infra.stores.sql import models  # noqa: F401
 from rag.infra.stores.sql.base import Base, get_db

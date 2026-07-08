@@ -2,10 +2,10 @@ import pytest
 from cryptography.fernet import Fernet
 
 from rag.config import settings
-from rag.crosscutting.security import local_auth
-from rag.crosscutting.security.mfa import encrypt_secret, generate_totp_secret
-from rag.crosscutting.security.password import hash_password
-from rag.crosscutting.security.tokens import decode_token
+from rag.auth import local_auth
+from rag.auth.mfa import encrypt_secret, generate_totp_secret
+from rag.auth.password import hash_password
+from rag.auth.tokens import decode_token
 from rag.infra.stores.sql.models import User
 
 

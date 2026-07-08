@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from rag.crosscutting.security.time_utils import as_aware_utc
+from rag.auth.time_utils import as_aware_utc
 
 
 def test_naive_input_gets_utc_tzinfo_attached():

@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from rag.api.main import create_app
-from rag.crosscutting.security.password import hash_password
+from rag.auth.password import hash_password
 from rag.infra.stores.sql import models  # noqa: F401
 from rag.infra.stores.sql.base import Base, get_db
 from rag.infra.stores.sql.models import Department, Role, RolePermission, User, UserRole

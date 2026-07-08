@@ -24,7 +24,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from rag.config import settings
-from rag.crosscutting.security.password import hash_password
+from rag.auth.password import hash_password
 from rag.infra.stores.sql import models  # noqa: F401
 from rag.infra.stores.sql.base import Base
 from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole

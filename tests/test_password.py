@@ -1,4 +1,4 @@
-from rag.crosscutting.security.password import hash_password, verify_password
+from rag.auth.password import hash_password, verify_password
 
 
 def test_hash_is_not_the_raw_password():
