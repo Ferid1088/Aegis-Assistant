@@ -27,6 +27,7 @@ export interface SessionEntitlements {
     evaluation: boolean;
     audit: boolean;
     system: boolean;
+    documentsManage: boolean;
   };
 }
 
