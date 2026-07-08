@@ -57,16 +57,19 @@ def _version_response(version) -> VersionResponse:
     )
 
 
-def _document_response(store: SQLiteDocumentStore, doc, *, can_manage: bool | None = None):
+def _document_response(db: Session, store: SQLiteDocumentStore, doc, *, can_manage: bool | None = None):
     versions = store.get_versions(doc.logical_doc_id)
     active = next((v for v in versions if v.is_active), versions[-1] if versions else None)
     filename = active.filename if active else Path(doc.source_identity).name
     payload = dict(
         id=doc.logical_doc_id,
-        title=Path(filename).stem,
-        department=doc.department,
-        access_level=", ".join(doc.access_level) if doc.access_level else None,
-        document_type=doc.document_type,
+        title=doc.title or Path(filename).stem,
+        department=_resolve_department_name(db, doc.department),
+        department_id=doc.department,
+        access_level=_resolve_access_level_names(db, doc.access_level),
+        access_level_ids=doc.access_level,
+        document_type=_resolve_document_type_name(db, doc.document_type),
+        document_type_id=doc.document_type,
         project=store.get_project_name(doc.project_id),
         phase=store.get_phase_name(doc.phase_id),
         upload_date=(active.created_at if active else doc.created_at).isoformat(),
@@ -109,6 +112,29 @@ def _validate_document_metadata(
     ).scalars().all()
     if len(matched) != len(level_uuids):
         raise HTTPException(status_code=400, detail="one or more access levels not found for this department")
+
+
+def _resolve_department_name(db: Session, department_id: str | None) -> str | None:
+    if not department_id:
+        return None
+    dept = db.get(Department, uuid.UUID(department_id))
+    return dept.name if dept else "Unknown department"
+
+
+def _resolve_document_type_name(db: Session, document_type_id: str | None) -> str | None:
+    if not document_type_id:
+        return None
+    dtype = db.get(DocumentType, uuid.UUID(document_type_id))
+    return dtype.label if dtype else "Unknown type"
+
+
+def _resolve_access_level_names(db: Session, access_level_ids: list[str]) -> str | None:
+    if not access_level_ids:
+        return None
+    ids = [uuid.UUID(level_id) for level_id in access_level_ids]
+    levels = db.execute(select(AccessLevel).where(AccessLevel.id.in_(ids))).scalars().all()
+    found = {str(lv.id): lv.label for lv in levels}
+    return ", ".join(found.get(level_id, "Unknown access level") for level_id in access_level_ids)
 
 
 @router.post("", response_model=JobResponse, status_code=202)
@@ -193,10 +219,11 @@ def get_job_status(
 @router.get("", response_model=list[LogicalDocumentResponse])
 def list_documents(
     current: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> list[LogicalDocumentResponse]:
     store = SQLiteDocumentStore()
     return [
-        _document_response(store, d)
+        _document_response(db, store, d)
         for d in store.list_logical_documents()
         if _doc_allowed(d, current)
     ]
@@ -206,6 +233,7 @@ def list_documents(
 def get_document(
     logical_doc_id: str,
     current: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> LogicalDocumentDetailResponse:
     store = SQLiteDocumentStore()
     doc = _get_document_or_404(store, logical_doc_id)
@@ -213,8 +241,7 @@ def get_document(
         raise HTTPException(status_code=404, detail="document not found")
 
     return _document_response(
-        store,
-        doc,
+        db, store, doc,
         can_manage="documents:manage_versions" in current.auth_subject.permissions,
     )
 
@@ -225,6 +252,7 @@ def activate_document_version(
     version_id: str,
     body: ActivateVersionRequest,
     current: AuthenticatedUser = Depends(require_permission("documents:manage_versions")),
+    db: Session = Depends(get_db),
 ) -> LogicalDocumentDetailResponse:
     store = SQLiteDocumentStore()
     doc = _get_document_or_404(store, logical_doc_id)
@@ -238,7 +266,7 @@ def activate_document_version(
             raise HTTPException(status_code=404, detail="version not found")
         target_version_id = match.version_id
     store.activate_version(target_version_id)
-    return _document_response(store, doc, can_manage=True)
+    return _document_response(db, store, doc, can_manage=True)
 
 
 @router.get("/{logical_doc_id}/render")

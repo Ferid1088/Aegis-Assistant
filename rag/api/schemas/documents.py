@@ -28,8 +28,11 @@ class LogicalDocumentResponse(BaseModel):
     id: str
     title: str
     department: str | None
+    department_id: str | None
     access_level: str | None
+    access_level_ids: list[str]
     document_type: str | None
+    document_type_id: str | None
     project: str | None
     phase: str | None
     upload_date: str

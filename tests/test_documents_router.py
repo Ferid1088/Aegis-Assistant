@@ -120,6 +120,50 @@ def test_get_document_unknown_id_404s(client, db_session):
     assert resp.status_code == 404
 
 
+def test_get_document_resolves_metadata_to_display_names(client, db_session):
+    from rag.domain.document_lifecycle import LogicalDocument
+    from rag.infra.stores.document_store import SQLiteDocumentStore
+    from rag import config
+
+    dept, dtype, level = _make_metadata_rows(db_session)
+    store = SQLiteDocumentStore(config.settings.sqlite_path)
+    store.create_logical_document(LogicalDocument(
+        logical_doc_id="doc-1", source_identity="filesystem:/x.pdf", title="Handbook",
+        department=str(dept.id), document_type=str(dtype.id), access_level=[str(level.id)],
+    ))
+    store.create_version("doc-1", content_hash="h1", filename="x.pdf", num_pages=1)
+
+    _, token = _make_user_with_permission(db_session, "alice", "documents:manage_versions")
+    resp = client.get("/api/v1/documents/doc-1", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["title"] == "Handbook"
+    assert body["department"] == "HR"
+    assert body["department_id"] == str(dept.id)
+    assert body["document_type"] == "Policy"
+    assert body["document_type_id"] == str(dtype.id)
+    assert body["access_level"] == "Public"
+    assert body["access_level_ids"] == [str(level.id)]
+
+
+def test_get_document_falls_back_for_deleted_department(client, db_session):
+    from rag.domain.document_lifecycle import LogicalDocument
+    from rag.infra.stores.document_store import SQLiteDocumentStore
+    from rag import config
+
+    store = SQLiteDocumentStore(config.settings.sqlite_path)
+    store.create_logical_document(LogicalDocument(
+        logical_doc_id="doc-2", source_identity="filesystem:/y.pdf", title="Orphan",
+        department="00000000-0000-0000-0000-000000000000",
+    ))
+    store.create_version("doc-2", content_hash="h2", filename="y.pdf", num_pages=1)
+
+    _, token = _make_user_with_permission(db_session, "alice", "documents:manage_versions")
+    resp = client.get("/api/v1/documents/doc-2", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["department"] == "Unknown department"
+
+
 @patch("rag.api.routers.documents.run_ingestion")
 def test_job_status_visible_to_uploader(mock_task, client, db_session):
     _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
