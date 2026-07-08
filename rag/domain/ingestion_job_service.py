@@ -1,3 +1,4 @@
+import json
 import uuid
 
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ class JobNotFound(Exception):
 def create_job(
     db: Session, *, uploaded_by: uuid.UUID, filename: str, staged_path: str, doc_version: str | None,
     target_logical_doc_id: str | None = None,
+    department: str | None = None, document_type: str | None = None, access_level: list[str] | None = None,
 ) -> IngestionJob:
     job = IngestionJob(
         uploaded_by=uploaded_by,
@@ -19,6 +21,9 @@ def create_job(
         staged_path=staged_path,
         doc_version=doc_version,
         target_logical_doc_id=target_logical_doc_id,
+        department=department,
+        document_type=document_type,
+        access_level=json.dumps(access_level) if access_level else None,
     )
     db.add(job)
     db.commit()
