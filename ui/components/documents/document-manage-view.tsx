@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { LogicalDocument } from "@/types";
 import { useApi } from "@/hooks/use-api";
 import { Button, Card, EmptyState, PageTitle, Pill } from "@/components/ui/primitives";
 import { UploadPanel } from "./upload-panel";
+import { DocumentMetadataFields, type DocumentMetadataValue } from "./document-metadata-fields";
 import { formatDate } from "@/lib/utils";
 
 type RawVersion = {
@@ -53,10 +54,24 @@ function toDocument(raw: RawDocumentDetail): LogicalDocument {
     };
 }
 
+const EMPTY_METADATA: DocumentMetadataValue = { department: "", documentType: "", accessLevel: [] };
+
 export function DocumentManageView({ docId }: { docId: string }) {
     const { data, loading, error, reload } = useApi<RawDocumentDetail>(`/documents/${docId}`);
     const [showUpload, setShowUpload] = useState(false);
+    const [metadata, setMetadata] = useState<DocumentMetadataValue>(EMPTY_METADATA);
+    const [saving, setSaving] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<string | null>(null);
     const document = useMemo(() => (data ? toDocument(data) : null), [data]);
+
+    useEffect(() => {
+        if (!data) return;
+        setMetadata({
+            department: data.department ?? "",
+            documentType: data.document_type ?? "",
+            accessLevel: data.access_level ? data.access_level.split(", ").filter(Boolean) : [],
+        });
+    }, [data]);
 
     async function activate(versionId: string, versionNo: number) {
         await fetch(`/api/v1/documents/${docId}/versions/${versionId}`, {
@@ -65,6 +80,33 @@ export function DocumentManageView({ docId }: { docId: string }) {
             body: JSON.stringify({ version_no: versionNo }),
         });
         reload();
+    }
+
+    async function saveMetadata() {
+        setSaving(true);
+        setSaveStatus(null);
+        try {
+            const res = await fetch(`/api/v1/documents/${docId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    department: metadata.department || null,
+                    document_type: metadata.documentType || null,
+                    access_level: metadata.accessLevel,
+                }),
+            });
+            if (!res.ok) {
+                const detail = await res.text();
+                setSaveStatus(detail || "Save failed");
+                return;
+            }
+            setSaveStatus("Saved.");
+            reload();
+        } catch {
+            setSaveStatus("Save failed.");
+        } finally {
+            setSaving(false);
+        }
     }
 
     if (loading) return <div className="p-6 text-sm text-inkFaint">Loading document…</div>;
@@ -77,13 +119,17 @@ export function DocumentManageView({ docId }: { docId: string }) {
                 {data.can_manage ? <Button onClick={() => setShowUpload((value) => !value)}>{showUpload ? "Hide version upload" : "Upload new version"}</Button> : null}
             </div>
 
-            {showUpload ? <UploadPanel onDone={reload} documents={[document]} defaultLogicalDocId={docId} /> : null}
+            {showUpload ? <UploadPanel onDone={reload} documents={[document]} defaultLogicalDocId={docId} canManage={data.can_manage} /> : null}
 
             <Card className="mb-6 p-5">
-                <div className="grid gap-3 md:grid-cols-3">
-                    <MetaRow label="Department" value={document.department} />
-                    <MetaRow label="Access level" value={document.accessLevel} />
-                    <MetaRow label="Document type" value={document.documentType} />
+                <DocumentMetadataFields value={metadata} onChange={setMetadata} disabled={!data.can_manage} />
+                {data.can_manage ? (
+                    <div className="mt-4 flex items-center gap-3">
+                        <Button onClick={saveMetadata} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+                        {saveStatus ? <span className="text-[12px] text-inkSoft">{saveStatus}</span> : null}
+                    </div>
+                ) : null}
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
                     <MetaRow label="Project" value={document.project} />
                     <MetaRow label="Phase" value={document.phase} />
                     <MetaRow label="Last modified" value={formatDate(document.lastModified)} />
