@@ -4,8 +4,8 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from rag.config import settings
-from rag.storage.sql import models  # noqa: F401  (registers models on Base.metadata)
-from rag.storage.sql.base import Base
+from rag.infra.stores.sql import models  # noqa: F401  (registers models on Base.metadata)
+from rag.infra.stores.sql.base import Base
 
 config = context.config
 if config.config_file_name is not None:

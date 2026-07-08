@@ -19,7 +19,7 @@ from qdrant_client import QdrantClient
 from qdrant_client import models as qm
 
 from rag.config import settings
-from rag.storage.vector_store import QdrantVectorStore
+from rag.infra.stores.vector_store import QdrantVectorStore
 
 
 def migrate(server_url: str, batch_size: int = 100) -> int:

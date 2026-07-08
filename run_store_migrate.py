@@ -6,9 +6,9 @@ import time
 from rag.migrations.neo4j.migration_0001_baseline import MIGRATION as NEO4J_0001
 from rag.migrations.qdrant.migration_0001_baseline import MIGRATION as QDRANT_0001
 from rag.migrations.runner import apply_pending
-from rag.storage.graph_store import Neo4jGraphStore
-from rag.storage.sql.base import SessionLocal
-from rag.storage.vector_store import QdrantVectorStore
+from rag.infra.stores.graph_store import Neo4jGraphStore
+from rag.infra.stores.sql.base import SessionLocal
+from rag.infra.stores.vector_store import QdrantVectorStore
 
 QDRANT_MIGRATIONS = [QDRANT_0001]
 NEO4J_MIGRATIONS = [NEO4J_0001]

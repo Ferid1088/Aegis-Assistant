@@ -19,7 +19,7 @@ from rag.bootstrap.tls_cert import ensure_tls_certificate
 from rag.bootstrap.wait_for_postgres import wait_for_postgres_ready
 from rag.config import settings
 from rag.healthcheck import main as healthcheck_main
-from rag.storage.sql.base import SessionLocal, reset_engine
+from rag.infra.stores.sql.base import SessionLocal, reset_engine
 
 import run_store_migrate
 
@@ -121,7 +121,7 @@ def run_install() -> None:
     # it here so run_store_migrate.main()/first-admin creation/healthcheck_main()
     # below (all later in this same process) use the real generated password
     # instead of the stale import-time dev-default. reset_engine() clears
-    # rag/storage/sql/base.py's cached engine so the next SessionLocal() call
+    # rag/infra/stores/sql/base.py's cached engine so the next SessionLocal() call
     # picks up the rebuilt URL (Phase 8.10b).
     postgres_password = read_env_value(env_path, "POSTGRES_PASSWORD")
     if postgres_password:

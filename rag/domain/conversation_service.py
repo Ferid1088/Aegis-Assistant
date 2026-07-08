@@ -7,7 +7,7 @@ from rag.crosscutting.security import keystore
 from rag.domain.conversation import (
     Conversation as DomainConversation, ConversationState, resolve_erasure, transition as domain_transition,
 )
-from rag.storage.sql.models import Conversation
+from rag.infra.stores.sql.models import Conversation
 
 
 class ConversationNotFound(Exception):

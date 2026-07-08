@@ -6,7 +6,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from rag.storage.sql.base import Base
+from rag.infra.stores.sql.base import Base
 
 
 def _now() -> datetime:

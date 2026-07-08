@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, inspect
 
-from rag.storage.sql.base import Base
-from rag.storage.sql import models  # noqa: F401  (registers models on Base.metadata)
+from rag.infra.stores.sql.base import Base
+from rag.infra.stores.sql import models  # noqa: F401  (registers models on Base.metadata)
 
 EXPECTED_TABLES = {
     "departments", "access_levels", "roles", "role_access_grants",
@@ -19,7 +19,7 @@ def test_all_expected_tables_are_registered():
 
 
 def test_insert_and_query_department_role_user(db_session):
-    from rag.storage.sql.models import AccessLevel, Department, Role, RoleAccessGrant, User, UserRole
+    from rag.infra.stores.sql.models import AccessLevel, Department, Role, RoleAccessGrant, User, UserRole
 
     dept = Department(name="HR")
     role = Role(name="hr_analyst")
@@ -44,7 +44,7 @@ def test_insert_and_query_department_role_user(db_session):
 
 
 def test_insert_conversation_and_grant(db_session):
-    from rag.storage.sql.models import Conversation, ConversationGrant, User
+    from rag.infra.stores.sql.models import Conversation, ConversationGrant, User
 
     owner = User(username="alice")
     db_session.add(owner)
@@ -67,7 +67,7 @@ def test_insert_conversation_and_grant(db_session):
 
 
 def test_ingestion_job_round_trip(db_session):
-    from rag.storage.sql.models import IngestionJob, User
+    from rag.infra.stores.sql.models import IngestionJob, User
     user = User(username="uploader")
     db_session.add(user)
     db_session.flush()
@@ -82,7 +82,7 @@ def test_ingestion_job_round_trip(db_session):
 
 
 def test_conversation_turn_round_trip(db_session):
-    from rag.storage.sql.models import Conversation, ConversationTurn, User
+    from rag.infra.stores.sql.models import Conversation, ConversationTurn, User
     user = User(username="alice")
     db_session.add(user)
     db_session.flush()

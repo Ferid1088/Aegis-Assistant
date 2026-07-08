@@ -9,7 +9,7 @@ from rag.crosscutting.context import Context
 from rag.crosscutting.observability.tracing import traced
 from rag.llm.provider import get_embedder, get_sparse_embedder
 from rag.models import RetrievedChunk
-from rag.storage.vector_store import QdrantVectorStore
+from rag.infra.stores.vector_store import QdrantVectorStore
 
 
 class SearchService:
@@ -86,7 +86,7 @@ class SearchService:
                      allowed_levels: list[str] | None = None,
                      ctx: Context | None = None) -> list[RetrievedChunk]:
         try:
-            from rag.storage.graph_store import Neo4jGraphStore
+            from rag.infra.stores.graph_store import Neo4jGraphStore
             gs = Neo4jGraphStore()
             neighbors = gs.neighbors(entity_names, hops, allowed_levels=allowed_levels)
             gs.close()

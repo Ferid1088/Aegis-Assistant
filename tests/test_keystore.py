@@ -31,7 +31,7 @@ def test_rotate_master_key_preserves_dek_values(db_session, monkeypatch):
 def test_rotate_master_key_sets_rotated_at(db_session, monkeypatch):
     from cryptography.fernet import Fernet
     from rag import config
-    from rag.storage.sql.models import KeystoreKey
+    from rag.infra.stores.sql.models import KeystoreKey
 
     keystore.get_or_create_key(db_session, "rotation-test")
 

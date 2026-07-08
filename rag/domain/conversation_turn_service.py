@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from rag.storage.sql.models import ConversationTurn
+from rag.infra.stores.sql.models import ConversationTurn
 
 
 def append_turn(

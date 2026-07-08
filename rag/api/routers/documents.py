@@ -20,8 +20,8 @@ from rag.crosscutting.security.ingestion_limits import (
 )
 from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import ingestion_job_service
-from rag.storage.document_store import SQLiteDocumentStore
-from rag.storage.sql.base import get_db
+from rag.infra.stores.document_store import SQLiteDocumentStore
+from rag.infra.stores.sql.base import get_db
 from rag.worker.tasks import run_ingestion
 
 router = APIRouter()

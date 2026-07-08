@@ -10,7 +10,7 @@ import uuid
 
 from rag.config import settings
 from rag.models import ChunkRecord
-from rag.storage.vector_store import QdrantVectorStore
+from rag.infra.stores.vector_store import QdrantVectorStore
 
 
 def test_logical_doc_id_round_trips_through_qdrant_payload():
@@ -100,7 +100,7 @@ def test_chunk_record_has_is_current_field():
 def test_upsert_includes_is_current(tmp_path):
     from unittest.mock import MagicMock, patch
     from rag.models import ChunkRecord
-    from rag.storage.vector_store import QdrantVectorStore
+    from rag.infra.stores.vector_store import QdrantVectorStore
 
     rec = ChunkRecord(
         chunk_id="c1",
@@ -114,7 +114,7 @@ def test_upsert_includes_is_current(tmp_path):
         is_current=False,
     )
 
-    with patch("rag.storage.vector_store.QdrantClient") as MockClient:
+    with patch("rag.infra.stores.vector_store.QdrantClient") as MockClient:
         instance = MockClient.return_value
         vs = QdrantVectorStore.__new__(QdrantVectorStore)
         vs.client = instance

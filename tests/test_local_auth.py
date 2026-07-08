@@ -6,7 +6,7 @@ from rag.crosscutting.security import local_auth
 from rag.crosscutting.security.mfa import encrypt_secret, generate_totp_secret
 from rag.crosscutting.security.password import hash_password
 from rag.crosscutting.security.tokens import decode_token
-from rag.storage.sql.models import User
+from rag.infra.stores.sql.models import User
 
 
 @pytest.fixture(autouse=True)

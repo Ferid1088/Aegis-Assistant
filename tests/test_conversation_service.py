@@ -4,7 +4,7 @@ import pytest
 
 from rag.domain import conversation_service
 from rag.domain.conversation import ConversationState
-from rag.storage.sql.models import Conversation, User
+from rag.infra.stores.sql.models import Conversation, User
 
 
 def _make_user(db_session, username="alice"):
@@ -141,7 +141,7 @@ def test_request_erasure_refused_under_legal_hold(db_session):
 
 def test_request_erasure_purge_deletes_conversation_turns(db_session):
     from rag.domain import conversation_service, conversation_turn_service
-    from rag.storage.sql.models import User
+    from rag.infra.stores.sql.models import User
 
     user = User(username="alice")
     db_session.add(user)
@@ -162,7 +162,7 @@ def test_request_erasure_purge_deletes_conversation_turns(db_session):
 def test_create_conversation_generates_real_keystore_key(db_session):
     from rag.crosscutting.security import keystore
     from rag.domain import conversation_service
-    from rag.storage.sql.models import User
+    from rag.infra.stores.sql.models import User
 
     user = User(username="alice")
     db_session.add(user)
@@ -178,7 +178,7 @@ def test_create_conversation_generates_real_keystore_key(db_session):
 def test_request_erasure_purge_deletes_keystore_key(db_session):
     from rag.crosscutting.security import keystore
     from rag.domain import conversation_service
-    from rag.storage.sql.models import User
+    from rag.infra.stores.sql.models import User
 
     user = User(username="alice")
     db_session.add(user)

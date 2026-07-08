@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 
 from rag.api.routers import conversations
 from rag.crosscutting.security.tokens import create_access_token
-from rag.storage.sql.base import get_db
-from rag.storage.sql.models import Role, RolePermission, User, UserRole, UserSession
+from rag.infra.stores.sql.base import get_db
+from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole, UserSession
 
 
 def _make_user_with_token(db_session, username):
@@ -322,7 +322,7 @@ def test_post_message_surfaces_verdict_and_enriched_citations(
 ):
     from rag.config import settings
     monkeypatch.setattr(settings, "sqlite_path", str(tmp_path / "documents.db"))
-    from rag.storage.document_store import SQLiteDocumentStore
+    from rag.infra.stores.document_store import SQLiteDocumentStore
     from rag.domain.document_lifecycle import LogicalDocument
 
     store = SQLiteDocumentStore()
@@ -368,7 +368,7 @@ def test_post_message_citation_region_uses_real_bbox_dict_shape(
 ):
     from rag.config import settings
     monkeypatch.setattr(settings, "sqlite_path", str(tmp_path / "documents.db"))
-    from rag.storage.document_store import SQLiteDocumentStore
+    from rag.infra.stores.document_store import SQLiteDocumentStore
     from rag.domain.document_lifecycle import LogicalDocument
 
     store = SQLiteDocumentStore()
@@ -427,7 +427,7 @@ def test_list_conversations_excludes_soft_deleted_and_purged(client, db_session)
     import uuid as uuid_module
 
     from rag.domain.conversation import ConversationState
-    from rag.storage.sql.models import Conversation
+    from rag.infra.stores.sql.models import Conversation
 
     _, token = _make_user_with_token(db_session, "alice")
     headers = {"Authorization": f"Bearer {token}"}
@@ -450,7 +450,7 @@ def test_list_conversations_computes_title_updated_at_message_count_locked(clien
     import uuid as uuid_module
 
     from rag.domain.conversation import ConversationState
-    from rag.storage.sql.models import Conversation
+    from rag.infra.stores.sql.models import Conversation
 
     _, token = _make_user_with_token(db_session, "alice")
     headers = {"Authorization": f"Bearer {token}"}

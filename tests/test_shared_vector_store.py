@@ -13,7 +13,7 @@ CI job (Phase 8.8, Task 4) via `tests/integration/test_upload_and_chat_flow.py`:
    needed), the second, independently-created client collides with the first,
    still-open one: RuntimeError("Storage folder ... is already accessed by
    another instance of Qdrant client..."). Fixed by routing both through one
-   process-wide get_shared_vector_store() singleton (rag/storage/vector_store.py).
+   process-wide get_shared_vector_store() singleton (rag/infra/stores/vector_store.py).
 
 2. Even after (1), the very first call to get_shared_vector_store() during a
    query could still race: rag/graphs/query.py's retrieval nodes (dense/sparse/
@@ -29,8 +29,8 @@ CI job (Phase 8.8, Task 4) via `tests/integration/test_upload_and_chat_flow.py`:
 import threading
 import time
 
-import rag.storage.vector_store as vector_store_module
-from rag.storage.vector_store import get_shared_vector_store
+import rag.infra.stores.vector_store as vector_store_module
+from rag.infra.stores.vector_store import get_shared_vector_store
 
 
 class _FakeClient:

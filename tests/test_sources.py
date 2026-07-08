@@ -1,6 +1,6 @@
 import pytest
 
-from rag.storage.sources import ApiSource, FilesystemSource, S3Source, SharePointSource, SqliteSource, SqlSource
+from rag.infra.stores.sources import ApiSource, FilesystemSource, S3Source, SharePointSource, SqliteSource, SqlSource
 
 
 def test_filesystem_source_lists_matching_files(tmp_path):

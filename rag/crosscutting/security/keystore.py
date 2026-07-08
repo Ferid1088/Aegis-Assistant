@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from rag.config import settings
-from rag.storage.sql.models import KeystoreKey, _now
+from rag.infra.stores.sql.models import KeystoreKey, _now
 
 
 def _master_fernet(master_key: str | None = None) -> Fernet:

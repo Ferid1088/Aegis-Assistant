@@ -11,10 +11,10 @@ from sqlalchemy.pool import StaticPool
 
 @pytest.fixture()
 def db_session():
-    """In-memory SQLite session with all rag.storage.sql models' tables created.
+    """In-memory SQLite session with all rag.infra.stores.sql models' tables created.
     Used for fast, DB-backed unit tests that don't need real Postgres."""
-    from rag.storage.sql import models  # noqa: F401  (registers models on Base.metadata)
-    from rag.storage.sql.base import Base
+    from rag.infra.stores.sql import models  # noqa: F401  (registers models on Base.metadata)
+    from rag.infra.stores.sql.base import Base
 
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)

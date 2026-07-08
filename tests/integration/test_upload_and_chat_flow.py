@@ -19,9 +19,9 @@ from sqlalchemy.orm import sessionmaker
 from rag.api.main import create_app
 from rag.config import settings
 from rag.crosscutting.security.tokens import create_access_token
-from rag.storage.sql import models  # noqa: F401  (registers models on Base.metadata)
-from rag.storage.sql.base import Base, get_db
-from rag.storage.sql.models import Role, RolePermission, User, UserRole, UserSession
+from rag.infra.stores.sql import models  # noqa: F401  (registers models on Base.metadata)
+from rag.infra.stores.sql.base import Base, get_db
+from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole, UserSession
 from rag.worker.celery_app import celery_app
 
 PDF_PATH = "docs/TV_L.pdf"

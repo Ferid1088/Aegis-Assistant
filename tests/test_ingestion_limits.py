@@ -11,8 +11,8 @@ from rag.crosscutting.security.ingestion_limits import (
 )
 from rag.crosscutting.security.rate_limit import limiter
 from rag.crosscutting.security.tokens import create_access_token
-from rag.storage.sql.base import get_db
-from rag.storage.sql.models import Role, RolePermission, User, UserRole, UserSession
+from rag.infra.stores.sql.base import get_db
+from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole, UserSession
 
 
 def _make_user_with_token(db_session, username):

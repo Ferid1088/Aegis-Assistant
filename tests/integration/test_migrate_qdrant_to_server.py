@@ -24,7 +24,7 @@ def _docker_available() -> bool:
 def test_migration_copies_all_points_to_server(monkeypatch, tmp_path):
     from rag.config import settings
     from rag.models import ChunkRecord
-    from rag.storage.vector_store import QdrantVectorStore
+    from rag.infra.stores.vector_store import QdrantVectorStore
 
     embedded_path = str(tmp_path / "qdrant-embedded")
     collection = "test_migration_8_10a"

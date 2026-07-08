@@ -14,9 +14,9 @@ from sqlalchemy.orm import sessionmaker
 
 from rag.config import settings
 from rag.domain import ingestion_job_service
-from rag.storage.sql import models  # noqa: F401
-from rag.storage.sql.base import Base
-from rag.storage.sql.models import User
+from rag.infra.stores.sql import models  # noqa: F401
+from rag.infra.stores.sql.base import Base
+from rag.infra.stores.sql.models import User
 from rag.worker.celery_app import celery_app
 from rag.worker.tasks import run_ingestion
 

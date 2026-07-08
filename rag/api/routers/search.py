@@ -16,8 +16,8 @@ from rag.capabilities.search.search_service import SearchService
 from rag.config import settings
 from rag.crosscutting.security.acl import acl_filter, live_recheck
 from rag.graphs.query import _rerank_impl  # reuse the same cross-encoder path as chat
-from rag.storage.document_store import SQLiteDocumentStore
-from rag.storage.vector_store import get_shared_vector_store
+from rag.infra.stores.document_store import SQLiteDocumentStore
+from rag.infra.stores.vector_store import get_shared_vector_store
 
 router = APIRouter()
 

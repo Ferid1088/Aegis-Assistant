@@ -3,7 +3,7 @@
 from neo4j import GraphDatabase
 
 from rag.config import settings
-from rag.storage.base import GraphStore
+from rag.infra.stores.base import GraphStore
 
 
 class Neo4jGraphStore(GraphStore):

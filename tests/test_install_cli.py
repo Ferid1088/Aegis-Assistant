@@ -354,7 +354,7 @@ def test_run_install_syncs_in_process_database_url_from_generated_postgres_passw
 
         # database_url must be rebuilt using the real generated POSTGRES_PASSWORD
         # (not the stale import-time dev-default), and reset_engine() must be
-        # called so rag/storage/sql/base.py's cached engine picks it up --
+        # called so rag/infra/stores/sql/base.py's cached engine picks it up --
         # otherwise run_store_migrate.main()/first-admin creation/healthcheck_main()
         # (all later in this same process) would silently keep using the stale
         # password.

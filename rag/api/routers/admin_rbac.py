@@ -11,8 +11,8 @@ from rag.api.schemas.admin import (
     RolePermissionCreate, RoleResponse,
 )
 from rag.crosscutting.security.audit_events import record_admin_change
-from rag.storage.sql.base import get_db
-from rag.storage.sql.models import AccessLevel, Department, DocumentType, Role, RoleAccessGrant, RolePermission
+from rag.infra.stores.sql.base import get_db
+from rag.infra.stores.sql.models import AccessLevel, Department, DocumentType, Role, RoleAccessGrant, RolePermission
 
 router = APIRouter()
 

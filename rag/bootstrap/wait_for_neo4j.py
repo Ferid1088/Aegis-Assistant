@@ -15,7 +15,7 @@ import time
 
 
 def wait_for_neo4j_ready(timeout_s: float = 60.0, interval_s: float = 1.0) -> None:
-    from rag.storage.graph_store import Neo4jGraphStore
+    from rag.infra.stores.graph_store import Neo4jGraphStore
 
     deadline = time.monotonic() + timeout_s
     last_exc: Exception | None = None

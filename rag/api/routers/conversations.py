@@ -19,9 +19,9 @@ from rag.crosscutting.security.rate_limit import limiter
 from rag.domain import conversation_service, conversation_turn_service
 from rag.domain.conversation import ConversationState
 from rag.graphs.query import build_query_graph
-from rag.storage.document_store import SQLiteDocumentStore
-from rag.storage.sql.base import get_db
-from rag.storage.sql.models import Conversation, ConversationTurn
+from rag.infra.stores.document_store import SQLiteDocumentStore
+from rag.infra.stores.sql.base import get_db
+from rag.infra.stores.sql.models import Conversation, ConversationTurn
 
 router = APIRouter()
 

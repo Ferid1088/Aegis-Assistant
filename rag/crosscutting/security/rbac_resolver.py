@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from rag.crosscutting.security.authorize import AuthSubject
-from rag.storage.sql.models import AccessLevel, Role, RoleAccessGrant, RolePermission, User, UserRole
+from rag.infra.stores.sql.models import AccessLevel, Role, RoleAccessGrant, RolePermission, User, UserRole
 
 
 def resolve_auth_subject(db: Session, user: User) -> AuthSubject:

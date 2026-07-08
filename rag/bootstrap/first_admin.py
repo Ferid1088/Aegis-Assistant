@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from rag.crosscutting.security.password import hash_password
-from rag.storage.sql.models import Role, RolePermission, User, UserRole
+from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole
 
 ADMIN_PERMISSIONS = [
     "admin:audit", "admin:conversations", "admin:departments", "admin:document_types",

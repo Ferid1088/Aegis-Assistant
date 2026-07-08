@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from rag.storage.sql.base import Base
+from rag.infra.stores.sql.base import Base
 
 
 def test_get_db_yields_working_session(monkeypatch):
@@ -9,7 +9,7 @@ def test_get_db_yields_working_session(monkeypatch):
     engine = create_engine("sqlite://")
     TestSessionLocal = sessionmaker(bind=engine)
 
-    import rag.storage.sql.base as base_module
+    import rag.infra.stores.sql.base as base_module
     monkeypatch.setattr(base_module, "SessionLocal", TestSessionLocal)
 
     gen = base_module.get_db()
@@ -24,7 +24,7 @@ def test_base_is_declarative_base():
 
 
 def test_get_engine_caches_the_engine_instance():
-    import rag.storage.sql.base as base_module
+    import rag.infra.stores.sql.base as base_module
 
     base_module.reset_engine()  # start from a clean slate regardless of test order
     try:
@@ -36,7 +36,7 @@ def test_get_engine_caches_the_engine_instance():
 
 
 def test_reset_engine_rebuilds_from_a_changed_database_url(monkeypatch):
-    import rag.storage.sql.base as base_module
+    import rag.infra.stores.sql.base as base_module
     from rag.config import settings
 
     base_module.reset_engine()
@@ -60,7 +60,7 @@ def test_reset_engine_rebuilds_from_a_changed_database_url(monkeypatch):
 
 
 def test_session_local_returns_session_bound_to_current_engine(monkeypatch):
-    import rag.storage.sql.base as base_module
+    import rag.infra.stores.sql.base as base_module
     from rag.config import settings
 
     base_module.reset_engine()

@@ -10,7 +10,7 @@ import uuid
 
 from rag.llm.provider import get_embedder, get_sparse_embedder
 from rag.models import ChunkRecord, Computation, ComputationStep
-from rag.storage.vector_store import QdrantVectorStore
+from rag.infra.stores.vector_store import QdrantVectorStore
 
 
 def seed():

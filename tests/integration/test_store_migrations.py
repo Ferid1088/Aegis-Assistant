@@ -13,9 +13,9 @@ from sqlalchemy.orm import sessionmaker
 from rag.config import settings
 from rag.migrations.qdrant.migration_0001_baseline import MIGRATION as QDRANT_0001
 from rag.migrations.runner import apply_pending, get_current_version
-from rag.storage.sql import models  # noqa: F401  (registers models on Base.metadata)
-from rag.storage.sql.base import Base
-from rag.storage.vector_store import QdrantVectorStore
+from rag.infra.stores.sql import models  # noqa: F401  (registers models on Base.metadata)
+from rag.infra.stores.sql.base import Base
+from rag.infra.stores.vector_store import QdrantVectorStore
 
 
 @pytest.fixture()
@@ -76,7 +76,7 @@ def test_qdrant_baseline_migration_applies_for_real(pg_session, tmp_path, monkey
 
 def _neo4j_reachable() -> bool:
     try:
-        from rag.storage.graph_store import Neo4jGraphStore
+        from rag.infra.stores.graph_store import Neo4jGraphStore
         store = Neo4jGraphStore()
         store.close()
         return True
@@ -87,7 +87,7 @@ def _neo4j_reachable() -> bool:
 @pytest.mark.skipif(not _neo4j_reachable(), reason="Neo4j not reachable locally")
 def test_neo4j_baseline_migration_applies_for_real(pg_session):
     from rag.migrations.neo4j.migration_0001_baseline import MIGRATION as NEO4J_0001
-    from rag.storage.graph_store import Neo4jGraphStore
+    from rag.infra.stores.graph_store import Neo4jGraphStore
 
     store = Neo4jGraphStore()
     try:

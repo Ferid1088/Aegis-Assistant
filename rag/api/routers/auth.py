@@ -10,8 +10,8 @@ from rag.api.schemas.auth import (
 from rag.crosscutting.security import local_auth, session_service
 from rag.crosscutting.security.audit_events import record_mfa_enrolled
 from rag.crosscutting.security.mfa import encrypt_secret, generate_totp_secret, totp_uri
-from rag.storage.sql.base import get_db
-from rag.storage.sql.models import Department
+from rag.infra.stores.sql.base import get_db
+from rag.infra.stores.sql.models import Department
 
 router = APIRouter()
 

@@ -2,7 +2,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from rag.storage.sql.models import IngestionJob
+from rag.infra.stores.sql.models import IngestionJob
 
 
 class JobNotFound(Exception):

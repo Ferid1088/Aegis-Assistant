@@ -12,8 +12,8 @@ from sqlalchemy.orm import sessionmaker
 from rag.bootstrap.env_writer import write_missing_env_vars
 from rag.bootstrap.first_admin import ADMIN_PERMISSIONS
 from rag.config import settings
-from rag.storage.sql import models  # noqa: F401
-from rag.storage.sql.models import Role, RolePermission, User, UserRole
+from rag.infra.stores.sql import models  # noqa: F401
+from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole
 
 
 def _docker_available() -> bool:

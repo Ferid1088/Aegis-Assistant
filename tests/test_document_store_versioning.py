@@ -3,7 +3,7 @@ import tempfile
 import threading
 
 from rag.domain.document_lifecycle import LogicalDocument, ProcessingState
-from rag.storage.document_store import SQLiteDocumentStore
+from rag.infra.stores.document_store import SQLiteDocumentStore
 
 
 def _store():

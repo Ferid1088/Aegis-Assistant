@@ -23,9 +23,9 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from rag.config import settings
-from rag.storage.sql import models  # noqa: F401
-from rag.storage.sql.base import Base
-from rag.storage.sql.models import User
+from rag.infra.stores.sql import models  # noqa: F401
+from rag.infra.stores.sql.base import Base
+from rag.infra.stores.sql.models import User
 
 
 def _docker_available() -> bool:

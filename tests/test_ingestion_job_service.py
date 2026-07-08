@@ -1,7 +1,7 @@
 import pytest
 
 from rag.domain import ingestion_job_service
-from rag.storage.sql.models import User
+from rag.infra.stores.sql.models import User
 
 
 def _make_user(db_session):

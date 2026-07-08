@@ -19,8 +19,8 @@ from rag.config import settings
 from rag.domain.document_lifecycle import LogicalDocument, ProcessingState, resolve_identity
 from rag.llm.provider import get_embedder, get_sparse_embedder
 from rag.models import BBox, ChunkRecord, DocumentMeta
-from rag.storage.document_store import SQLiteDocumentStore
-from rag.storage.vector_store import QdrantVectorStore, close_shared_vector_store, get_shared_vector_store
+from rag.infra.stores.document_store import SQLiteDocumentStore
+from rag.infra.stores.vector_store import QdrantVectorStore, close_shared_vector_store, get_shared_vector_store
 
 _doc_store = None
 
@@ -40,7 +40,7 @@ def _get_doc_store() -> SQLiteDocumentStore:
 
 
 def _get_vec_store() -> QdrantVectorStore:
-    # Process-wide singleton (rag/storage/vector_store.py) -- NOT a private one
+    # Process-wide singleton (rag/infra/stores/vector_store.py) -- NOT a private one
     # here, so ingestion (writes) and query (reads, rag/graphs/query.py) share
     # the one open embedded-Qdrant handle a process is allowed to hold. See
     # get_shared_vector_store()'s docstring for why a second, independent
@@ -455,7 +455,7 @@ def extract_graph_artifacts(state: IngestionState) -> dict:
 
     # ── GRAPH branch (optional, BUILD_GRAPH=true) ────────────────────
         from rag.capabilities.extract import build_rule_chunks, process_chunk_graph
-        from rag.storage.graph_store import Neo4jGraphStore
+        from rag.infra.stores.graph_store import Neo4jGraphStore
 
         graph_store = Neo4jGraphStore()
         embedder = get_embedder()

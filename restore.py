@@ -15,7 +15,7 @@ from pathlib import Path
 
 from rag.backup.archive import decrypt_archive, extract_tar
 from rag.bootstrap.wait_for_neo4j import wait_for_neo4j_ready
-from rag.storage.sql.base import SessionLocal
+from rag.infra.stores.sql.base import SessionLocal
 
 
 def run_restore(backup_path: Path) -> None:

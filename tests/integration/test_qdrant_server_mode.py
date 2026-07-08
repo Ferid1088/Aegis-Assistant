@@ -36,7 +36,7 @@ def test_server_mode_matches_embedded_behavior(monkeypatch, tmp_path):
         pytest.fail("qdrant server did not become reachable on 127.0.0.1:6333")
 
     from rag.config import settings
-    from rag.storage.vector_store import QdrantVectorStore
+    from rag.infra.stores.vector_store import QdrantVectorStore
     from rag.models import ChunkRecord
 
     monkeypatch.setattr(settings, "qdrant_url", "http://localhost:6333")

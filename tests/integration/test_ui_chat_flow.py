@@ -25,9 +25,9 @@ from sqlalchemy.orm import sessionmaker
 
 from rag.config import settings
 from rag.crosscutting.security.password import hash_password
-from rag.storage.sql import models  # noqa: F401
-from rag.storage.sql.base import Base
-from rag.storage.sql.models import Role, RolePermission, User, UserRole
+from rag.infra.stores.sql import models  # noqa: F401
+from rag.infra.stores.sql.base import Base
+from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 UI_DIR = REPO_ROOT / "ui"

@@ -26,7 +26,7 @@ from rag.crosscutting.observability.tracing import traced
 from rag.crosscutting.security.acl import acl_filter, live_recheck, log_retrieval_audit, type_filter
 from rag.llm.provider import get_device, get_llm
 from rag.models import RetrievedChunk
-from rag.storage.vector_store import get_shared_vector_store
+from rag.infra.stores.vector_store import get_shared_vector_store
 
 
 class QueryState(TypedDict):

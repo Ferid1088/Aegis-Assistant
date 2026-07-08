@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from rag.crosscutting.security.authorize import AuthSubject
 from rag.crosscutting.security.rbac_resolver import resolve_auth_subject
 from rag.crosscutting.security.tokens import decode_token
-from rag.storage.sql.base import get_db
-from rag.storage.sql.models import User, UserSession
+from rag.infra.stores.sql.base import get_db
+from rag.infra.stores.sql.models import User, UserSession
 
 
 @dataclass

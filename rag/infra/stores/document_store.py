@@ -11,7 +11,7 @@ from rag.domain.document_lifecycle import (
     ProcessingState,
 )
 from rag.models import DocumentMeta
-from rag.storage.base import DocumentStore
+from rag.infra.stores.base import DocumentStore
 
 
 class SQLiteDocumentStore(DocumentStore):

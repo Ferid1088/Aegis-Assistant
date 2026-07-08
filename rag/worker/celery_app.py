@@ -10,7 +10,7 @@ from rag.crosscutting.security.ingestion_limits import decrement_queued_ingestio
 from rag.domain.ingestion_job_service import JobNotFound, get_job
 from rag.observability.logging_config import configure_logging
 from rag.observability.queue_metrics import start_queue_depth_exporter
-from rag.storage.sql.base import SessionLocal
+from rag.infra.stores.sql.base import SessionLocal
 
 configure_logging()
 

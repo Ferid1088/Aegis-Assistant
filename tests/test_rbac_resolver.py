@@ -1,5 +1,5 @@
 from rag.crosscutting.security.rbac_resolver import resolve_auth_subject
-from rag.storage.sql.models import AccessLevel, Department, Role, RoleAccessGrant, RolePermission, User, UserRole
+from rag.infra.stores.sql.models import AccessLevel, Department, Role, RoleAccessGrant, RolePermission, User, UserRole
 
 
 def _make_user_with_role(db_session, role_name, permissions, level_labels):

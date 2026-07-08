@@ -12,7 +12,7 @@ from rag.crosscutting.security.mfa import decrypt_secret, verify_totp
 from rag.crosscutting.security.password import verify_password
 from rag.crosscutting.security.time_utils import as_aware_utc
 from rag.crosscutting.security.tokens import create_access_token, create_mfa_pending_token, decode_token, generate_refresh_token
-from rag.storage.sql.models import LoginAttempt, RefreshToken, User, UserSession
+from rag.infra.stores.sql.models import LoginAttempt, RefreshToken, User, UserSession
 
 
 class AuthError(Exception):

@@ -1,5 +1,5 @@
 from rag.domain import conversation_turn_service
-from rag.storage.sql.models import Conversation, User
+from rag.infra.stores.sql.models import Conversation, User
 
 
 def _make_conversation(db_session):

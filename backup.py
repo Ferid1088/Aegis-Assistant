@@ -25,7 +25,7 @@ from rag.backup.capture import (
 )
 from rag.backup.retention import prune_old_backups
 from rag.config import settings
-from rag.storage.sql.base import SessionLocal
+from rag.infra.stores.sql.base import SessionLocal
 
 
 def run_backup(backup_dir: Path = Path("backups")) -> Path:

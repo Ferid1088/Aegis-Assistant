@@ -3,7 +3,7 @@ from sqlalchemy import text
 from rag.capabilities.cache import get_redis
 from rag.config import settings
 from rag.llm.provider import get_llm, get_embedder, get_device
-from rag.storage.sql.base import SessionLocal
+from rag.infra.stores.sql.base import SessionLocal
 
 
 def check_postgres() -> None:
@@ -40,11 +40,11 @@ def main():
         r = llm.invoke("Reply with only: OK")
         print(f"✅ LLM OK ({settings.llm_backend}: {r.content[:20]})")
 
-    from rag.storage.vector_store import QdrantVectorStore
+    from rag.infra.stores.vector_store import QdrantVectorStore
     QdrantVectorStore().ensure_collection(dense_dim=dim)
     print("✅ Qdrant OK")
 
-    from rag.storage.document_store import SQLiteDocumentStore
+    from rag.infra.stores.document_store import SQLiteDocumentStore
     SQLiteDocumentStore()
     print("✅ SQLite OK")
 

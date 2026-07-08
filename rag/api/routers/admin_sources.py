@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, require_permission
 from rag.domain import ingestion_job_service
-from rag.storage.document_store import SQLiteDocumentStore
-from rag.storage.sql.base import get_db
-from rag.storage.sql.models import DocumentSourceConfig
+from rag.infra.stores.document_store import SQLiteDocumentStore
+from rag.infra.stores.sql.base import get_db
+from rag.infra.stores.sql.models import DocumentSourceConfig
 
 router = APIRouter()
 
