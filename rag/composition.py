@@ -6,8 +6,10 @@ unchanged. None of them are called at import time, and none of their laziness,
 caching, or rebuild semantics change by being re-exported — get_engine() is still
 lazily rebuilt after install.py mutates settings.database_url (Phase 8.10b),
 get_shared_vector_store() is still a process-wide singleton avoiding the Qdrant
-file-lock race between ingestion and query (Phase 8.8), and the embedder/reranker/
-LLM getters still defer loading multi-GB models until first called.
+file-lock race between ingestion and query (Phase 8.8), and the embedder/LLM
+getters still defer loading multi-GB models until first called. (The reranker
+getter, rag.pipelines.retrieval.state._get_reranker, is intentionally private
+to that pipeline and not re-exported here.)
 
 Existing call sites are NOT required to import from here — they keep importing
 directly from each function's home module. This file exists so a developer (or a
