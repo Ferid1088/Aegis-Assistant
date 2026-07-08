@@ -24,7 +24,7 @@ eine Software-Appliance kann diese nicht selbst erfüllen.
 | Kontrolle | Umsetzung in dieser Anwendung |
 |---|---|
 | Rollenbasierte Zugriffskontrolle | `rag/crosscutting/security/` — granulare Berechtigungsprüfung pro Endpunkt |
-| Mehr-Faktor-Authentifizierung | Verfügbar (TOTP), opt-in pro Benutzer — derzeit keine erzwungene organisationsweite Richtlinie (`rag/crosscutting/security/mfa.py`) |
+| Mehr-Faktor-Authentifizierung | Verfügbar (TOTP), opt-in pro Benutzer — derzeit keine erzwungene organisationsweite Richtlinie (`rag/auth/mfa.py`) |
 | Sitzungs-Widerruf | Entzogene Berechtigungen wirken sich auf die nächste Anfrage aus |
 
 ## KRY — Kryptografie und Schlüsselmanagement (Cryptography and Key Management)

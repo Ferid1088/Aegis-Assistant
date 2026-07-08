@@ -39,7 +39,7 @@ separately defined. Legal confirmation required.)*
 - Rollenbasierte Zugriffskontrolle (RBAC) mit granularen Berechtigungen
   pro Rolle (`rag/crosscutting/security/` — Berechtigungsprüfung vor jedem
   Endpunktzugriff).
-- Multi-Faktor-Authentifizierung (MFA) verfügbar (`rag/crosscutting/security/mfa.py`).
+- Multi-Faktor-Authentifizierung (MFA) verfügbar (`rag/auth/mfa.py`).
 - Sitzungs-Widerruf: eine entzogene Berechtigung wirkt sich auf die
   nächste Anfrage des Nutzers aus (Session-Invalidierung).
 
