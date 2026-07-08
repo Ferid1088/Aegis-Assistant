@@ -160,3 +160,35 @@ def test_run_ingestion_unhandled_exception_with_retries_exhausted_marks_job_fail
     assert "pipeline exploded" in refreshed.error
     assert not Path(staged_path).exists()
     mock_graph.invoke.assert_called_once()
+
+
+@patch("rag.worker.tasks.SessionLocal")
+@patch("rag.worker.tasks.build_ingestion_graph")
+def test_run_ingestion_passes_metadata_into_state(mock_build_graph, mock_session_local, db_session, tmp_path):
+    mock_session_local.return_value = db_session
+    user = User(username="uploader2")
+    db_session.add(user)
+    db_session.flush()
+    staged_path = str(tmp_path / "a.pdf")
+    Path(staged_path).write_bytes(b"%PDF-1.4 fake content")
+    job = ingestion_job_service.create_job(
+        db_session, uploaded_by=user.id, filename="a.pdf", staged_path=staged_path, doc_version=None,
+        title="Employee Handbook", department_id="dept-1", document_type_id="type-1",
+        access_level_ids=["level-1"],
+    )
+    job_uuid = job.id
+
+    mock_graph = mock_build_graph.return_value
+    mock_graph.invoke.return_value = {
+        "status": "indexed", "indexed_count": 1,
+        "doc_meta": type("M", (), {"logical_doc_id": "ld-1"})(),
+    }
+
+    from rag.worker.tasks import run_ingestion
+    run_ingestion.run(str(job_uuid))
+
+    called_state = mock_graph.invoke.call_args[0][0]
+    assert called_state["title"] == "Employee Handbook"
+    assert called_state["department_id"] == "dept-1"
+    assert called_state["document_type_id"] == "type-1"
+    assert called_state["access_level_ids"] == ["level-1"]

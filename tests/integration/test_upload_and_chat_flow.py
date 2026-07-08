@@ -94,12 +94,30 @@ def test_upload_index_and_chat_round_trip(client):
     _, token = _make_authorized_user(session_factory, "integration-uploader", "documents:upload")
     headers = {"Authorization": f"Bearer {token}"}
 
+    from rag.infra.stores.sql.models import AccessLevel, Department, DocumentType
+    db = session_factory()
+    dept = Department(name="HR")
+    db.add(dept)
+    db.flush()
+    dtype = DocumentType(label="Policy")
+    db.add(dtype)
+    db.flush()
+    level = AccessLevel(department_id=dept.id, label="Public", rank=1)
+    db.add(level)
+    db.commit()
+    dept_id, dtype_id, level_id = str(dept.id), str(dtype.id), str(level.id)
+    db.close()
+
     # 1. Upload a real PDF -> should enqueue an ingestion job (202) and, under eager Celery,
     # the job should already have run synchronously by the time upload_document returns.
     with open(PDF_PATH, "rb") as f:
         resp = test_client.post(
             "/api/v1/documents",
             files={"file": ("TV_L.pdf", f, "application/pdf")},
+            data={
+                "title": "TV_L Reference", "department_id": dept_id,
+                "document_type_id": dtype_id, "access_level_ids": [level_id],
+            },
             headers=headers,
         )
     assert resp.status_code == 202, resp.text
@@ -107,15 +125,25 @@ def test_upload_index_and_chat_round_trip(client):
 
     # 2. Poll job status until it reaches a terminal state (allow for real embedding/indexing time).
     status = None
+    logical_doc_id = None
     for _ in range(120):
         status_resp = test_client.get(f"/api/v1/documents/jobs/{job_id}", headers=headers)
         assert status_resp.status_code == 200, status_resp.text
         status = status_resp.json()["status"]
+        logical_doc_id = status_resp.json()["logical_doc_id"]
         if status in ("done", "failed"):
             break
         import time
         time.sleep(1)
     assert status == "done", f"ingestion job did not complete successfully: {status}"
+
+    from rag.infra.stores.document_store import SQLiteDocumentStore
+    store = SQLiteDocumentStore()
+    doc = store.get_logical_document(logical_doc_id)
+    assert doc.title == "TV_L Reference"
+    assert doc.department == dept_id
+    assert doc.document_type == dtype_id
+    assert doc.access_level == [level_id]
 
     # 3. The ingested document should now be listed.
     docs_resp = test_client.get("/api/v1/documents", headers=headers)

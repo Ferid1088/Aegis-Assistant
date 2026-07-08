@@ -19,6 +19,14 @@ def run_ingestion(self, job_id: str) -> None:
             state["doc_version"] = job.doc_version
         if job.target_logical_doc_id:
             state["target_logical_doc_id"] = job.target_logical_doc_id
+        if job.title:
+            state["title"] = job.title
+        if job.department_id:
+            state["department_id"] = job.department_id
+        if job.document_type_id:
+            state["document_type_id"] = job.document_type_id
+        if job.access_level_ids:
+            state["access_level_ids"] = job.access_level_ids
 
         try:
             result = build_ingestion_graph().invoke(state)

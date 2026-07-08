@@ -51,6 +51,11 @@ def _get_vec_store() -> QdrantVectorStore:
 class IngestionState(TypedDict):
     file_path: str
     doc_version: NotRequired[str]
+    target_logical_doc_id: NotRequired[str]
+    title: NotRequired[str]
+    department_id: NotRequired[str]
+    document_type_id: NotRequired[str]
+    access_level_ids: NotRequired[list[str]]
     doc_meta: NotRequired[DocumentMeta]
     docling_path: NotRequired[str]
     version_id: NotRequired[str]
@@ -308,7 +313,14 @@ def convert(state: IngestionState) -> dict:
         if logical_doc_id is None:
             logical_doc_id = str(uuid.uuid4())
             doc_store.create_logical_document(
-                LogicalDocument(logical_doc_id=logical_doc_id, source_identity=source_identity)
+                LogicalDocument(
+                    logical_doc_id=logical_doc_id,
+                    source_identity=source_identity,
+                    title=state.get("title"),
+                    department=state.get("department_id"),
+                    document_type=state.get("document_type_id"),
+                    access_level=state.get("access_level_ids", []),
+                )
             )
 
     # We need the allocated version_id before conversion so the page-image export
