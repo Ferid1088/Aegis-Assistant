@@ -264,6 +264,23 @@ def test_upload_requires_metadata_fields(mock_task, client, db_session):
 
 
 @patch("rag.api.routers.documents.run_ingestion")
+def test_upload_requires_access_level_ids_specifically(mock_task, client, db_session):
+    _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
+    dept, dtype, level = _make_metadata_rows(db_session)
+    resp = client.post(
+        "/api/v1/documents",
+        files={"file": ("a.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        data={
+            "title": "Employee Handbook", "department_id": str(dept.id),
+            "document_type_id": str(dtype.id),
+            # access_level_ids deliberately omitted
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+@patch("rag.api.routers.documents.run_ingestion")
 def test_upload_with_valid_metadata_succeeds(mock_task, client, db_session):
     _, token = _make_user_with_permission(db_session, "alice", "documents:upload")
     dept, dtype, level = _make_metadata_rows(db_session)

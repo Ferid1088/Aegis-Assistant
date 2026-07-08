@@ -132,7 +132,7 @@ def upload_document(
         raise HTTPException(status_code=413, detail="file exceeds max upload size")
 
     if logical_doc_id is None:
-        if not title or not department_id or not document_type_id:
+        if not title or not department_id or not document_type_id or not access_level_ids:
             raise HTTPException(status_code=422, detail="title, department_id, document_type_id, and access_level_ids are required for a new document")
         _validate_document_metadata(db, department_id, document_type_id, access_level_ids)
 
