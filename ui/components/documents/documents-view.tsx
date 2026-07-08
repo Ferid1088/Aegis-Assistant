@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { LogicalDocument } from "@/types";
+import type { LogicalDocument, SessionEntitlements } from "@/types";
 import { useApi } from "@/hooks/use-api";
 import { PageTitle, Button } from "@/components/ui/primitives";
 import { DocumentTable } from "./document-table";
@@ -50,6 +50,7 @@ export function DocumentsView() {
     const [tab, setTab] = useState<Tab>("library");
     const [showUpload, setShowUpload] = useState(false);
     const { data, loading, reload } = useApi<RawDocument[]>("/documents");
+    const { data: session } = useApi<SessionEntitlements>("/session");
     const documents = useMemo(() => (data ?? []).map(toDocument), [data]);
 
     return (
@@ -73,7 +74,7 @@ export function DocumentsView() {
 
             {tab === "library" ? (
                 <>
-                    {showUpload ? <UploadPanel onDone={reload} documents={documents} /> : null}
+                    {showUpload ? <UploadPanel onDone={reload} documents={documents} canManage={session?.nav.documentsManage ?? false} /> : null}
                     {loading ? <p className="text-sm text-inkFaint">Loading documents…</p> : <DocumentTable documents={documents} />}
                 </>
             ) : null}
