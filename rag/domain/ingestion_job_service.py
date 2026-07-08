@@ -11,7 +11,9 @@ class JobNotFound(Exception):
 
 def create_job(
     db: Session, *, uploaded_by: uuid.UUID, filename: str, staged_path: str, doc_version: str | None,
-    target_logical_doc_id: str | None = None,
+    target_logical_doc_id: str | None = None, title: str | None = None,
+    department_id: str | None = None, document_type_id: str | None = None,
+    access_level_ids: list[str] | None = None,
 ) -> IngestionJob:
     job = IngestionJob(
         uploaded_by=uploaded_by,
@@ -19,6 +21,10 @@ def create_job(
         staged_path=staged_path,
         doc_version=doc_version,
         target_logical_doc_id=target_logical_doc_id,
+        title=title,
+        department_id=department_id,
+        document_type_id=document_type_id,
+        access_level_ids=access_level_ids,
     )
     db.add(job)
     db.commit()
