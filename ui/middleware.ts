@@ -10,11 +10,21 @@ async function isAccessTokenValid(accessToken: string): Promise<boolean> {
   return res.ok;
 }
 
+async function needsSetup(): Promise<boolean> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/setup/status`, { cache: "no-store" });
+  if (!res.ok) return false;
+  const data = await res.json().catch(() => ({ needs_setup: false }));
+  return Boolean(data.needs_setup);
+}
+
 export async function middleware(request: NextRequest) {
   const accessToken = request.cookies.get(ACCESS_COOKIE)?.value;
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
 
   if (!accessToken && !refreshToken) {
+    if (await needsSetup()) {
+      return NextResponse.redirect(new URL("/setup", request.url));
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -44,5 +54,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!login|setup|api|_next/static|_next/image|favicon.ico).*)"],
 };
