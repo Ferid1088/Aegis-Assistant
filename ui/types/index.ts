@@ -199,7 +199,9 @@ export interface PreflightResult {
 export interface LicenseRequest { fingerprint: string; requestBlob: string; }
 
 // ---- permissions / ACL (5.1) ----
-export interface AccessLevel { id: Id; label: string; rank: number; }
+export interface Department { id: Id; name: string; }
+export interface DocumentType { id: Id; label: string; }
+export interface AccessLevel { id: Id; departmentId: Id; label: string; rank: number; }
 export interface RoleGrant { roleId: Id; roleLabel: string; accessLevelIds: Id[]; }
 export interface PermissionMatrix { roles: { id: Id; label: string }[]; accessLevels: AccessLevel[]; grants: RoleGrant[]; }
 
