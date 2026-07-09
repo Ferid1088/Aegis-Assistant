@@ -32,6 +32,11 @@ jobs:
     timeout-minutes: 90
     env:
       HF_HOME: ${{ github.workspace }}/.hf-cache
+      # This runner has no GPU -- qwen2.5:7b generation via Ollama on CPU alone
+      # can take well over the app's normal 60s default (rag/config.py's
+      # llm_request_timeout_seconds), causing httpx.ReadTimeout on every LLM
+      # call (query transform, table_ab, run_eval, etc.) in this job.
+      LLM_REQUEST_TIMEOUT_SECONDS: "300"
     steps:
       - uses: actions/checkout@v4
 
