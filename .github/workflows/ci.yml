@@ -56,7 +56,7 @@ jobs:
         run: uv run python install.py
 
       - name: Run Docker-backed integration tests
-        run: uv run pytest tests/integration --ignore=tests/integration/test_upload_and_chat_flow.py -v -s
+        run: uv run pytest tests/integration -v -s
 
       - name: Show container logs on failure
         if: failure()
@@ -130,9 +130,6 @@ jobs:
 
       - name: Ragas eval (report only, no threshold)
         run: uv run python eval/run_eval.py
-
-      - name: Upload/chat round-trip (needs Ollama + Postgres + Redis, set up above)
-        run: uv run pytest tests/integration/test_upload_and_chat_flow.py -v -s
 
       - name: Upload eval reports
         if: always()

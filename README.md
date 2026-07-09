@@ -624,7 +624,7 @@ graph TD;
 - **Health Checks**: Docker Compose healthchecks gate service startup ordering (e.g. Postgres/Neo4j/Qdrant must report healthy before `app`/`worker` start); `install.py` additionally polls Postgres readiness before running migrations.
 
 ## Testing
-- **Unit & integration tests**: `tests/` (92+ files) covers RBAC, authentication/MFA, account lockout, session handling, document access control, backup/restore, release-bundle signing, observability, Celery workers, and API routers. Integration tests live under `tests/integration/`, including `tests/integration/test_upload_and_chat_flow.py` which exercises the full upload → ingest → chat flow.
+- **Unit & integration tests**: `tests/` (92+ files) covers RBAC, authentication/MFA, account lockout, session handling, document access control, backup/restore, release-bundle signing, observability, Celery workers, and API routers. Integration tests live under `tests/integration/`.
 - **Test tooling**: `pytest`, with `httpx` for API client testing and `fakeredis` to avoid a real Redis dependency in unit tests.
 - **RAG evaluation**: `eval/` contains a RAGAS-based harness (`run_eval.py`, `eval_report.py`, `eval_aggregation.py`) run against a golden query set (`eval/golden_set.jsonl`, `eval/table_gold.jsonl`), plus A/B comparison scripts for embeddings (`ab_embedding.py`) and extraction (`ab_extraction.py`).
 - Run the full suite with:
