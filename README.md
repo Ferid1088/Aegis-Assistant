@@ -640,7 +640,8 @@ Triggered on every tag push matching `v*`. Steps:
 3. Derives the release version from the tag name (`v1.2.3` → `1.2.3`).
 4. Logs in to GHCR (`ghcr.io`) using the built-in `GITHUB_TOKEN` (requires the workflow's `packages: write` permission).
 5. Tags and pushes `app`, `worker`, and `ui` images to GHCR under `ghcr.io/ferid1088/aegis-assistant-<service>`, each with both the resolved version tag and `latest`. `app` and `worker` share the same build (only their compose `command:` differs), so one image is pushed under both names.
-6. Builds the unsigned release bundle via `build_bundle.py`.
+6. Builds the release bundle via `build_bundle.py`, then **signs** it (`sign_bundle.py`) using a private key written from a repository secret, immediately removed from the runner afterward.
+7. Creates a GitHub Release (tag `v1.2.3`) with the signed bundle attached (`softprops/action-gh-release@v2`).
 
 No user data or knowledge base is ever part of the Docker build context — only application code and dependencies are published.
 
