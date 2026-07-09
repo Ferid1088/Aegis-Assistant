@@ -90,6 +90,27 @@ def test_run_ingestion_duplicate_skip_marks_job_done_with_no_new_content(mock_bu
 
 @patch("rag.worker.tasks.SessionLocal")
 @patch("rag.worker.tasks.build_ingestion_graph")
+def test_run_ingestion_duplicate_skip_still_reports_the_existing_logical_doc_id(
+    mock_build_graph, mock_session_local, db_session, tmp_path,
+):
+    mock_session_local.return_value = db_session
+    job = _make_job(db_session, tmp_path)
+    job_uuid = job.id
+
+    mock_graph = mock_build_graph.return_value
+    mock_graph.invoke.return_value = {"status": "skipped (duplicate)", "logical_doc_id": "existing-logical-doc"}
+
+    from rag.worker.tasks import run_ingestion
+    run_ingestion.run(str(job_uuid))
+
+    refreshed = ingestion_job_service.get_job(db_session, job_uuid)
+    assert refreshed.status == "done"
+    assert refreshed.logical_doc_id == "existing-logical-doc"
+    assert refreshed.indexed_count is None
+
+
+@patch("rag.worker.tasks.SessionLocal")
+@patch("rag.worker.tasks.build_ingestion_graph")
 def test_run_ingestion_unhandled_exception_with_retries_remaining_stays_running(
     mock_build_graph, mock_session_local, db_session, tmp_path,
 ):

@@ -45,7 +45,7 @@ def run_ingestion(self, job_id: str) -> None:
             return
 
         doc_meta = result.get("doc_meta")
-        logical_doc_id = doc_meta.logical_doc_id if doc_meta is not None else None
+        logical_doc_id = doc_meta.logical_doc_id if doc_meta is not None else result.get("logical_doc_id")
         ingestion_job_service.mark_done(
             db, job, logical_doc_id=logical_doc_id, indexed_count=result.get("indexed_count"),
         )

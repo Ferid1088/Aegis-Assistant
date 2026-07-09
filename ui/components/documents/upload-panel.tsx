@@ -3,7 +3,47 @@
 import { useEffect, useState } from "react";
 import type { AccessLevel, Department, DocumentType, LogicalDocument } from "@/types";
 import { useApi } from "@/hooks/use-api";
+import { api } from "@/lib/api";
 import { Button, Card } from "@/components/ui/primitives";
+
+interface JobStatus {
+    job_id: string;
+    status: string;
+    error: string | null;
+    logical_doc_id: string | null;
+    indexed_count: number | null;
+}
+
+const JOB_POLL_INTERVAL_MS = 2000;
+const JOB_POLL_MAX_ATTEMPTS = 150; // ~5 minutes, generous for a cold model-load ingestion run
+
+async function pollJobUntilTerminal(jobId: string, onUpdate: (job: JobStatus) => void): Promise<void> {
+    for (let attempt = 0; attempt < JOB_POLL_MAX_ATTEMPTS; attempt++) {
+        let job: JobStatus;
+        try {
+            job = await api.get<JobStatus>(`/documents/jobs/${jobId}`);
+        } catch {
+            return; // job status is best-effort feedback; a transient fetch error shouldn't loop forever
+        }
+        if (job.status === "done" || job.status === "failed") {
+            onUpdate(job);
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+    }
+}
+
+function describeJobOutcome(job: JobStatus): string {
+    if (job.status === "failed") {
+        return `Processing failed: ${job.error ?? "unknown error"}`;
+    }
+    if (job.indexed_count === null) {
+        // convert() short-circuits on a content-hash match within the same department
+        // without producing new chunks -- see rag/graphs/ingestion.py's dedup gate.
+        return "This file's content already exists as a document in this department -- no new content was indexed.";
+    }
+    return `Indexed ${job.indexed_count} chunk${job.indexed_count === 1 ? "" : "s"}.`;
+}
 
 export function UploadPanel({
     onDone,
@@ -64,7 +104,8 @@ export function UploadPanel({
                 setStatus(detail || "Upload failed");
                 return;
             }
-            setStatus("Queued for processing.");
+            const { job_id: jobId } = (await res.json()) as { job_id: string };
+            setStatus("Queued for processing…");
             setFile(null);
             setLogicalDocId(defaultLogicalDocId ?? "");
             setTitle("");
@@ -72,6 +113,10 @@ export function UploadPanel({
             setDocumentTypeId("");
             setAccessLevelIds([]);
             onDone();
+            pollJobUntilTerminal(jobId, (job) => {
+                setStatus(describeJobOutcome(job));
+                onDone();
+            });
         } catch {
             setStatus("Upload failed.");
         } finally {

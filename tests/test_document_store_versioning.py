@@ -21,6 +21,27 @@ def test_find_logical_by_identity_none_when_absent():
         os.unlink(db_path)
 
 
+def test_find_logical_by_content_hash_none_when_absent():
+    store, db_path = _store()
+    try:
+        assert store.find_logical_by_content_hash("deadbeef") is None
+    finally:
+        store.conn.close()
+        os.unlink(db_path)
+
+
+def test_find_logical_by_content_hash_after_create_version():
+    store, db_path = _store()
+    try:
+        doc = LogicalDocument(logical_doc_id="L1", source_identity="filesystem:/x.pdf")
+        store.create_logical_document(doc)
+        store.create_version(logical_doc_id="L1", content_hash="deadbeef", filename="x.pdf")
+        assert store.find_logical_by_content_hash("deadbeef") == "L1"
+    finally:
+        store.conn.close()
+        os.unlink(db_path)
+
+
 def test_create_and_find_logical_document():
     store, db_path = _store()
     try:

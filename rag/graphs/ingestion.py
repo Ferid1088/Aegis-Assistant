@@ -59,6 +59,7 @@ class IngestionState(TypedDict):
     doc_meta: NotRequired[DocumentMeta]
     docling_path: NotRequired[str]
     version_id: NotRequired[str]
+    logical_doc_id: NotRequired[str | None]
     indexed_count: NotRequired[int]
     status: NotRequired[str]
     error: NotRequired[str]
@@ -292,9 +293,21 @@ def convert(state: IngestionState) -> dict:
     content_hash = _content_hash(file_path)
     doc_store = _get_doc_store()
 
-    if doc_store.exists(content_hash):
-        print(f"⏭️  {file_path.name}: skipped (duplicate)")
-        return {"status": "skipped (duplicate)"}
+    # ── 02.1: logical document / version split (reserved seam, dual-write) ──
+    target_logical_doc_id = state.get("target_logical_doc_id")
+
+    # The duplicate-content gate only applies to *new*-document uploads, scoped to the
+    # requested department: the same physical file can legitimately need its own
+    # access-controlled logical document in more than one department, and an explicit
+    # "upload as new version of X" should never be silently discarded just because its
+    # bytes happen to match some unrelated document elsewhere in the system.
+    if target_logical_doc_id is None:
+        existing_logical_doc_id = doc_store.find_logical_by_content_hash_in_department(
+            content_hash, state.get("department_id"),
+        )
+        if existing_logical_doc_id is not None:
+            print(f"⏭️  {file_path.name}: skipped (duplicate in this department)")
+            return {"status": "skipped (duplicate)", "logical_doc_id": existing_logical_doc_id}
 
     doc_id = str(uuid.uuid4())
 
@@ -303,8 +316,6 @@ def convert(state: IngestionState) -> dict:
         doc_store.mark_superseded(old_doc_id, doc_id)
         print(f"🔄 Superseded old version (doc_id={old_doc_id[:8]}…)")
 
-    # ── 02.1: logical document / version split (reserved seam, dual-write) ──
-    target_logical_doc_id = state.get("target_logical_doc_id")
     if target_logical_doc_id:
         logical_doc_id = target_logical_doc_id
     else:

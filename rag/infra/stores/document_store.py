@@ -142,6 +142,30 @@ class SQLiteDocumentStore(DocumentStore):
         ).fetchone()
         return row["logical_doc_id"] if row else None
 
+    def find_logical_by_content_hash(self, content_hash: str) -> str | None:
+        row = self.conn.execute(
+            "SELECT logical_doc_id FROM document_versions WHERE content_hash = ? ORDER BY created_at LIMIT 1",
+            (content_hash,),
+        ).fetchone()
+        return row["logical_doc_id"] if row else None
+
+    def find_logical_by_content_hash_in_department(self, content_hash: str, department_id: str) -> str | None:
+        """Scoped duplicate check for new-document uploads: the same physical file may
+        legitimately need to live under two different departments, each with its own
+        access-controlled logical document (a finance-wide policy PDF also filed under
+        HR, say). Only treat an upload as a duplicate if that department already has
+        this exact content -- global content-hash dedup was silently discarding a
+        re-upload's chosen department/title whenever the bytes matched *any* prior
+        upload anywhere in the system."""
+        row = self.conn.execute(
+            """SELECT dv.logical_doc_id FROM document_versions dv
+               JOIN logical_documents ld ON ld.logical_doc_id = dv.logical_doc_id
+               WHERE dv.content_hash = ? AND ld.department = ?
+               ORDER BY dv.created_at LIMIT 1""",
+            (content_hash, department_id),
+        ).fetchone()
+        return row["logical_doc_id"] if row else None
+
     def create_logical_document(self, doc: LogicalDocument) -> None:
         self.conn.execute(
             """INSERT INTO logical_documents
