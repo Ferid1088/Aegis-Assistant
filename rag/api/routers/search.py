@@ -2,8 +2,12 @@ from collections import Counter
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
 from rag.api.deps import AuthenticatedUser, get_current_user
+from rag.api.routers.documents import (
+    _resolve_access_level_names, _resolve_department_name, _resolve_document_type_name,
+)
 from rag.api.schemas.documents import (
     FacetResponse,
     FacetValueResponse,
@@ -17,6 +21,7 @@ from rag.config import settings
 from rag.crosscutting.security.acl import acl_filter, live_recheck
 from rag.graphs.query import _rerank_impl  # reuse the same cross-encoder path as chat
 from rag.infra.stores.document_store import SQLiteDocumentStore
+from rag.infra.stores.sql.base import get_db
 from rag.infra.stores.vector_store import get_shared_vector_store
 
 router = APIRouter()
@@ -30,7 +35,7 @@ def _doc_allowed(doc, current: AuthenticatedUser) -> bool:
     return bool(levels and doc_levels and levels & doc_levels)
 
 
-def _summarize_document(store: SQLiteDocumentStore, doc) -> LogicalDocumentResponse:
+def _summarize_document(db: Session, store: SQLiteDocumentStore, doc) -> LogicalDocumentResponse:
     versions = store.get_versions(doc.logical_doc_id)
     active = next((v for v in versions if v.is_active), versions[-1] if versions else None)
     upload_date = active.created_at if active else doc.created_at
@@ -38,10 +43,13 @@ def _summarize_document(store: SQLiteDocumentStore, doc) -> LogicalDocumentRespo
     filename = active.filename if active else Path(doc.source_identity).name
     return LogicalDocumentResponse(
         id=doc.logical_doc_id,
-        title=Path(filename).stem,
-        department=doc.department,
-        access_level=", ".join(doc.access_level) if doc.access_level else None,
-        document_type=doc.document_type,
+        title=doc.title or Path(filename).stem,
+        department=_resolve_department_name(db, doc.department),
+        department_id=doc.department,
+        access_level=_resolve_access_level_names(db, doc.access_level),
+        access_level_ids=doc.access_level,
+        document_type=_resolve_document_type_name(db, doc.document_type),
+        document_type_id=doc.document_type,
         project=store.get_project_name(doc.project_id),
         phase=store.get_phase_name(doc.phase_id),
         upload_date=upload_date.isoformat(),
@@ -71,6 +79,7 @@ def _apply_doc_filters(summary: LogicalDocumentResponse, filters: dict[str, list
 def search_documents(
     body: SearchRequest,
     current: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> SearchResponse:
     query = body.query.strip()
     if not query:
@@ -95,7 +104,7 @@ def search_documents(
         doc = store.get_logical_document(logical_doc_id)
         if doc is None or not _doc_allowed(doc, current):
             continue
-        summary = _summarize_document(store, doc)
+        summary = _summarize_document(db, store, doc)
         visible_docs[logical_doc_id] = summary
         region = None
         bboxes = chunk.metadata.get("bboxes") or []
