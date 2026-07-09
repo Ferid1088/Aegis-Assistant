@@ -1,9 +1,385 @@
 services:
   neo4j:
+    restart: unless-stopped
     image: neo4j:5-community
-    ports: ["7474:7474", "7687:7687"]
     environment:
-      NEO4J_AUTH: neo4j/password
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_server_memory_heap_max__size: 512M
     volumes:
       - ./data/neo4j:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  postgres:
+    restart: unless-stopped
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: appliance
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  pgbouncer:
+    restart: unless-stopped
+    image: edoburu/pgbouncer:latest
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/appliance
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      # Without this, edoburu/pgbouncer's entrypoint defaults AUTH_TYPE to
+      # "md5", which makes it store an MD5-hashed credential in userlist.txt
+      # instead of the plaintext password -- confirmed for real: pgbouncer
+      # then cannot complete a SCRAM handshake against its own backend
+      # connection to Postgres (which defaults to password_encryption =
+      # scram-sha-256), failing every connection with "cannot do SCRAM
+      # authentication: wrong password type". Matching AUTH_TYPE to
+      # Postgres's own scram-sha-256 default makes the entrypoint store the
+      # real plaintext password instead, which works for both legs (client
+      # -> pgbouncer and pgbouncer -> postgres).
+      AUTH_TYPE: scram-sha-256
+      # Overridable for the pooling-proof integration test (Task 3, Step 4)
+      # via `PGBOUNCER_POOL_SIZE=5 docker compose up -d --force-recreate
+      # pgbouncer` -- sized against §12.6's ~100-user reference tier by
+      # default, well under Postgres's own default max_connections=100.
+      DEFAULT_POOL_SIZE: "${PGBOUNCER_POOL_SIZE:-20}"
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  qdrant:
+    restart: unless-stopped
+    image: qdrant/qdrant:latest
+    ports: ["127.0.0.1:6333:6333"]
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    # Loopback-only, matching postgres/qdrant's existing convention -- needed
+    # so install.py's own host-side healthcheck (check_redis(), Phase 8.10b)
+    # can reach it; not a public port, same security posture as those two.
+    ports: ["127.0.0.1:6379:6379"]
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  vllm:
+    restart: unless-stopped
+    image: vllm/vllm-openai:latest
+    # Excluded from a plain `docker compose up -d` -- only started via
+    # `docker compose --profile gpu up -d vllm` on a GPU-equipped host.
+    # Verified for real: `docker compose config --services` (no profile)
+    # omits a profile-gated service entirely; `--profile gpu config
+    # --services` includes it (Phase 8.10c).
+    profiles: ["gpu"]
+    # Required by vLLM's own documented Docker usage: PyTorch uses shared
+    # memory for tensor-parallel inference under the hood.
+    ipc: host
+    command: ["--model", "${LLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}"]
+    ports: ["127.0.0.1:8000:8000"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
+    volumes:
+      # Matches vLLM's own documented Docker usage: the default HuggingFace
+      # cache path inside the official image is /root/.cache/huggingface.
+      - vllm_models:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+  worker:
+    restart: unless-stopped
+    build: .
+    image: rag-appliance-worker:latest
+    command: uv run celery -A rag.worker.celery_app worker --loglevel=info --concurrency=2
+    env_file: .env
+    environment:
+      # rag/config.py's database_url defaults to a "localhost" hostname, reachable
+      # only from the host -- this container reaches Postgres at the "postgres"
+      # service hostname instead. Set here (environment: overrides env_file: for the
+      # same key), not written into the shared .env file, so install.py's own
+      # host-side Postgres access (which reads that same .env) is never broken by a
+      # container-only hostname. ${POSTGRES_PASSWORD:-password} matches the
+      # postgres service's own interpolation above (Phase 8.10b) -- both resolve
+      # to the same real generated secret once install.py writes one into .env.
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-password}@pgbouncer:5432/appliance
+      # Same host-vs-container split as DATABASE_URL above: install.py writes a
+      # host-reachable QDRANT_URL (http://localhost:6333, via qdrant's loopback
+      # port) into the shared .env for its own host-side healthcheck/migration
+      # steps; this container-internal hostname override takes precedence for
+      # everything that actually runs inside app/worker.
+      QDRANT_URL: http://qdrant:6333
+      # Same host-vs-container split as QDRANT_URL/DATABASE_URL above:
+      # install.py writes a host-reachable VLLM_BASE_URL
+      # (http://localhost:8000/v1, via vllm's loopback-published port)
+      # into the shared .env for host-side use; this container-internal
+      # hostname override takes precedence for app/worker (Phase 8.10c).
+      VLLM_BASE_URL: http://vllm:8000/v1
+      # Same host-vs-container split, fixing a real bug: install.py's own
+      # host-side healthcheck_main() (which calls check_redis(), Phase 8.10b)
+      # could not resolve the "redis" hostname or reach its port from the
+      # host -- REDIS_URL was written into .env as the container-internal
+      # value with no override, unlike DATABASE_URL/QDRANT_URL. Verified for
+      # real: `redis.Redis.from_url("redis://redis:6379")` from the host
+      # fails DNS resolution. install.py now writes a host-reachable
+      # REDIS_URL (redis://localhost:6379, via redis's new loopback port);
+      # this container-internal override takes precedence inside app/worker.
+      REDIS_URL: redis://redis:6379
+      # `uv run` re-verifies/reconciles .venv against uv.lock on EVERY startup, not
+      # just once at build time -- observed for real: every `docker compose
+      # restart` re-triggers "Uninstalled N package(s)" / "Installed N package(s)"
+      # writes into .venv. Under read_only: true there is no writable .venv to
+      # reconcile into, so disable the sync step entirely -- deps are already fully
+      # installed by `uv sync --frozen --no-dev` at image build time, so there is
+      # nothing meaningful to reconcile at runtime anyway.
+      UV_NO_SYNC: "1"
+      # Even with UV_NO_SYNC=1 skipping the reconciliation itself, `uv run` still
+      # tries to initialize its cache dir at $HOME/.cache/uv on every invocation and
+      # crashes under read_only: true -- observed for real:
+      #   error: Failed to initialize cache at `/home/appuser/.cache/uv`
+      #     Caused by: failed to create directory `/home/appuser/.cache/uv`:
+      #     Read-only file system (os error 30)
+      # Point it at the /tmp tmpfs below instead of adding a separate tmpfs mount.
+      UV_CACHE_DIR: /tmp/uv-cache
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs:
+      - /tmp
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - hf_models:/models/hf
+    healthcheck:
+      test: ["CMD-SHELL", "uv run celery -A rag.worker.celery_app inspect ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  app:
+    restart: unless-stopped
+    build: .
+    image: rag-appliance-app:latest
+    command: uv run uvicorn rag.api.main:create_app --factory --host 0.0.0.0 --port 8000
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-password}@pgbouncer:5432/appliance
+      # Same host-vs-container split as DATABASE_URL above: install.py writes a
+      # host-reachable QDRANT_URL (http://localhost:6333, via qdrant's loopback
+      # port) into the shared .env for its own host-side healthcheck/migration
+      # steps; this container-internal hostname override takes precedence for
+      # everything that actually runs inside app/worker.
+      QDRANT_URL: http://qdrant:6333
+      # Same host-vs-container split as QDRANT_URL/DATABASE_URL above:
+      # install.py writes a host-reachable VLLM_BASE_URL
+      # (http://localhost:8000/v1, via vllm's loopback-published port)
+      # into the shared .env for host-side use; this container-internal
+      # hostname override takes precedence for app/worker (Phase 8.10c).
+      VLLM_BASE_URL: http://vllm:8000/v1
+      # Same host-vs-container split, fixing a real bug: install.py's own
+      # host-side healthcheck_main() (which calls check_redis(), Phase 8.10b)
+      # could not resolve the "redis" hostname or reach its port from the
+      # host -- REDIS_URL was written into .env as the container-internal
+      # value with no override, unlike DATABASE_URL/QDRANT_URL. Verified for
+      # real: `redis.Redis.from_url("redis://redis:6379")` from the host
+      # fails DNS resolution. install.py now writes a host-reachable
+      # REDIS_URL (redis://localhost:6379, via redis's new loopback port);
+      # this container-internal override takes precedence inside app/worker.
+      REDIS_URL: redis://redis:6379
+      # See worker's UV_NO_SYNC comment above -- same reconciliation-on-every-start
+      # behavior was observed for `app` too.
+      UV_NO_SYNC: "1"
+      # Even with UV_NO_SYNC=1 skipping the reconciliation itself, `uv run` still
+      # tries to initialize its cache dir at $HOME/.cache/uv on every invocation and
+      # crashes under read_only: true -- observed for real:
+      #   error: Failed to initialize cache at `/home/appuser/.cache/uv`
+      #     Caused by: failed to create directory `/home/appuser/.cache/uv`:
+      #     Read-only file system (os error 30)
+      # Point it at the /tmp tmpfs below instead of adding a separate tmpfs mount.
+      UV_CACHE_DIR: /tmp/uv-cache
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs:
+      - /tmp
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - hf_models:/models/hf
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u, sys; sys.exit(0 if u.urlopen('http://localhost:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  ui:
+    restart: unless-stopped
+    build: ./ui
+    image: rag-appliance-ui:latest
+    environment:
+      API_BASE_URL: http://app:8000
+    read_only: true
+    cap_drop: ["ALL"]
+    tmpfs:
+      - /tmp
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  nginx:
+    restart: unless-stopped
+    image: nginx:latest
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      app:
+        condition: service_healthy
+      ui:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -kf https://localhost/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  node_exporter:
+    restart: unless-stopped
+    image: prom/node-exporter:latest
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+    ports: ["127.0.0.1:9100:9100"]
+
+  prometheus:
+    restart: unless-stopped
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports: ["127.0.0.1:9090:9090"]
+    depends_on:
+      - app
+      - worker
+      - node_exporter
+
+  grafana:
+    restart: unless-stopped
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      - prometheus
+
+  glitchtip-migrate:
+    restart: unless-stopped
+    image: glitchtip/glitchtip:latest
+    command: ./manage.py migrate
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
+      REDIS_URL: redis://redis:6379/1
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+    depends_on:
+      - postgres
+      - redis
+
+  glitchtip-web:
+    restart: unless-stopped
+    image: glitchtip/glitchtip:latest
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
+      REDIS_URL: redis://redis:6379/1
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+      PORT: 8080
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      - glitchtip-migrate
+
+  glitchtip-worker:
+    restart: unless-stopped
+    image: glitchtip/glitchtip:latest
+    command: ./bin/run-celery-with-beat.sh
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/glitchtip
+      REDIS_URL: redis://redis:6379/1
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+    depends_on:
+      - glitchtip-migrate
+
+volumes:
+  hf_models:
+  prometheus_data:
+  grafana_data:
+  vllm_models:

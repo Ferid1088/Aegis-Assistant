@@ -1,0 +1,27 @@
+{
+  "title": "Host Metrics",
+  "uid": "host-metrics",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "CPU Usage",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "targets": [
+        {"expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))", "refId": "A"}
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Memory Available",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "targets": [
+        {"expr": "node_memory_MemAvailable_bytes", "refId": "A"}
+      ]
+    }
+  ]
+}

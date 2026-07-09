@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Build the images
+        run: docker build -t rag-appliance-app:release .
+
+      - name: Trivy scan (CRITICAL only, blocking)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rag-appliance-app:release
+          severity: CRITICAL
+          exit-code: "1"
+          # Ignore the 2 already-investigated, unfixed perl-base CVEs (see
+          # .github/release.trivyignore) so releases aren't permanently
+          # blocked by an accepted-risk finding with no upstream fix. This
+          # ignore file is scoped to this release gate only -- ci.yml's
+          # trivy-scan job does not reference it and is unaffected.
+          trivyignores: .github/release.trivyignore
+
+      - name: Extract version and changelog from the tag
+        id: tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the unsigned bundle
+        run: uv run python build_bundle.py ${{ steps.tag.outputs.version }} "${{ github.event.head_commit.message }}"
+
+      - name: Write the signing private key
+        run: |
+          mkdir -p keys
+          printf '%s' "${{ secrets.RELEASE_SIGNING_PRIVATE_KEY }}" > keys/update_signing_privkey.pem
+
+      - name: Sign the bundle
+        run: uv run python sign_bundle.py bundle-build
+
+      - name: Remove the private key from the runner
+        if: always()
+        run: rm -f keys/update_signing_privkey.pem
+
+      - name: Create the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: appliance-update-v${{ steps.tag.outputs.version }}.tar
+          body: ${{ github.event.head_commit.message }}

@@ -1,0 +1,27 @@
+.git/
+data/
+.env
+keys/update_signing_privkey.pem
+# TLS key/cert install.py generates for the nginx service -- nginx gets it via
+# a bind mount (./certs:/etc/nginx/certs), never via the image build context.
+certs/
+.venv/
+**/__pycache__/
+*.pyc
+.DS_Store
+.worktrees/
+.pytest_cache/
+.superpowers/
+.claude/
+*.egg-info/
+backups/
+# build_bundle.py's own output dir: it saves the worker image's tar here
+# before building the app image from the same Dockerfile (COPY . .), so
+# without this exclusion the app image's build context -- and its final
+# tar -- embeds the already-saved worker image tarball.
+bundle-build/
+# sign_bundle.py's final signed-bundle output, produced after both images
+# are already built in release.yml's current step order, so this isn't
+# load-bearing for context bloat today -- excluded anyway so a future
+# reordering (or local/manual re-run) can't silently repeat the same bug.
+appliance-update-v*.tar
