@@ -26,9 +26,20 @@ from eval.eval_aggregation import aggregate_metric_columns
 # Patch broken langchain_community import before ragas loads
 sys.modules["langchain_community.chat_models.vertexai"] = MagicMock()
 
-# Allow nested event loops (Ragas uses async internally)
-import nest_asyncio
-nest_asyncio.apply()
+# Prevent nest_asyncio.apply() (called unconditionally by ragas.executor at
+# import time, "to allow nested event loops") from actually taking effect --
+# its apply() checks this marker and no-ops if already set. This script never
+# has an already-running event loop (it's a plain top-level script), so the
+# nested-loop patch is unneeded here -- and applying it globally replaces
+# asyncio.Task with the pure-Python _PyTask implementation, which does not
+# correctly integrate with Python 3.12+'s C-level current-task tracking. That
+# breaks asyncio.current_task() for the rest of the process, which cascades
+# into every ragas metric call failing with "RuntimeError: Timeout should be
+# used inside a task" (asyncio.wait_for's internal asyncio.timeout()) and,
+# once that's worked around, into sniffio/httpx failing the same way. Must be
+# set before `from ragas...` below, since that import triggers the patch.
+import asyncio
+asyncio._nest_patched = True
 
 from datasets import Dataset
 from ragas import evaluate
