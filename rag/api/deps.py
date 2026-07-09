@@ -74,3 +74,12 @@ def require_any_permission(*permissions: str):
             raise HTTPException(status_code=403, detail=f"missing permission: one of {permissions}")
         return current
     return _check
+
+
+def require_any_admin(current: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
+    """Matches the is_admin check in auth.py's /session (any admin:* permission) --
+    gates surfaces that are admin-only but not tied to one specific admin:* scope
+    (evaluation metrics, system health)."""
+    if not any(p.startswith("admin:") for p in current.auth_subject.permissions):
+        raise HTTPException(status_code=403, detail="admin access required")
+    return current

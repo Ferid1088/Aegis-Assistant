@@ -35,6 +35,12 @@ class TraceStore(ABC):
         git_commit: str,
     ) -> str: ...
 
+    @abstractmethod
+    def list_eval_runs(self, limit: int = 50) -> list[dict[str, Any]]: ...
+
+    @abstractmethod
+    def latency_summary(self, limit_spans: int = 5000) -> list[dict[str, Any]]: ...
+
 
 class SQLiteTraceStore(TraceStore):
     def __init__(self, db_path: str | None = None) -> None:
@@ -102,6 +108,51 @@ class SQLiteTraceStore(TraceStore):
         )
         self.conn.commit()
         return run_id
+
+    def list_eval_runs(self, limit: int = 50) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            "SELECT run_id, kind, metrics, git_commit, ts FROM eval_runs ORDER BY ts DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [
+            {
+                "run_id": row["run_id"],
+                "kind": row["kind"],
+                "metrics": json.loads(row["metrics"]),
+                "git_commit": row["git_commit"],
+                "ts": row["ts"],
+            }
+            for row in rows
+        ]
+
+    def latency_summary(self, limit_spans: int = 5000) -> list[dict[str, Any]]:
+        """p50/p95/p99 duration per span_name over the most recent spans."""
+        rows = self.conn.execute(
+            """SELECT span_name, duration_ms FROM traces
+               WHERE id IN (SELECT id FROM traces ORDER BY id DESC LIMIT ?)
+               ORDER BY span_name""",
+            (limit_spans,),
+        ).fetchall()
+        by_span: dict[str, list[float]] = {}
+        for row in rows:
+            by_span.setdefault(row["span_name"], []).append(row["duration_ms"])
+
+        def _pct(values: list[float], pct: float) -> float:
+            if not values:
+                return 0.0
+            s = sorted(values)
+            idx = min(len(s) - 1, int(len(s) * pct))
+            return s[idx]
+
+        return [
+            {
+                "span": span,
+                "p50": _pct(values, 0.50),
+                "p95": _pct(values, 0.95),
+                "p99": _pct(values, 0.99),
+            }
+            for span, values in sorted(by_span.items())
+        ]
 
 
 _store: SQLiteTraceStore | None = None

@@ -11,7 +11,10 @@ from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from rag.api.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
-from rag.api.routers import admin_audit, admin_rbac, admin_sources, admin_users, auth as auth_router, conversations, documents, search
+from rag.api.routers import (
+    admin_audit, admin_observability, admin_rbac, admin_sources, admin_users, auth as auth_router, conversations,
+    documents, search,
+)
 from rag.config import settings
 from rag.crosscutting.security.rate_limit import limiter
 from rag.healthcheck import check_postgres, check_redis
@@ -69,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_sources.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(admin_users.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(admin_audit.router, prefix="/api/v1/admin", tags=["admin"])
+    app.include_router(admin_observability.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["conversations"])
     app.include_router(documents.router, prefix="/api/v1/documents", tags=["documents"])
     app.include_router(search.router, prefix="/api/v1/search", tags=["search"])

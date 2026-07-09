@@ -88,6 +88,7 @@ class SessionResponse(BaseModel):
 
 class AuditEntryResponse(BaseModel):
     actor_user: str
+    actor_username: str | None = None
     action: str
     resource: str
     ts: str
@@ -100,3 +101,28 @@ class AuditVerifyResponse(BaseModel):
     valid: bool
     count: int
     error: str
+
+
+class EvalRunResponse(BaseModel):
+    run_id: str
+    kind: str
+    metrics: dict
+    git_commit: str
+    ts: str
+
+
+class LatencyPointResponse(BaseModel):
+    span: str
+    p50: float
+    p95: float
+    p99: float
+
+
+class ComponentStatusResponse(BaseModel):
+    name: str
+    status: str  # "online" | "degraded" | "offline"
+    detail: str | None = None
+
+
+class SystemStatusResponse(BaseModel):
+    components: list[ComponentStatusResponse]
