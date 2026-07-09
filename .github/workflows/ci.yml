@@ -87,6 +87,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune -af
+          df -h /
+
       - name: Cache Ollama models
         uses: actions/cache@v4
         with:
@@ -148,6 +154,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker image prune -af
+          df -h /
 
       - name: Build the app image
         run: docker build -t rag-appliance-app:ci .
