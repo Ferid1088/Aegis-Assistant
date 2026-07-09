@@ -3,9 +3,12 @@
 import json
 from pathlib import Path
 
+from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, InputFormat, PdfFormatOption
 from docling_core.types.doc.document import DoclingDocument
+
+from rag.config import settings
 
 
 def check_text_layer(result) -> None:
@@ -55,10 +58,22 @@ def export_tables(doc: DoclingDocument, source: str) -> list[dict]:
     return tables
 
 
+def _accelerator_device() -> AcceleratorDevice:
+    # MPS (Apple Silicon Metal) reliably segfaults Docling's layout model when
+    # initialized inside a Celery prefork worker (os.fork() + Metal don't mix) --
+    # force CPU here unconditionally on that path, regardless of what get_device()
+    # picks for the embedding models. CUDA (no forked-GPU-context issue on Linux)
+    # stays available as an explicit opt-in via DEVICE.
+    if settings.device == "cuda":
+        return AcceleratorDevice.CUDA
+    return AcceleratorDevice.CPU
+
+
 def convert(pdf_path: Path, render_dir: Path | None = None) -> tuple[Path, Path]:
     pipeline_options = PdfPipelineOptions()
     pipeline_options.generate_page_images = True
     pipeline_options.images_scale = 1.5
+    pipeline_options.accelerator_options = AcceleratorOptions(device=_accelerator_device())
     converter = DocumentConverter(
         format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
     )
