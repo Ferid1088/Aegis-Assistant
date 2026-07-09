@@ -32,11 +32,15 @@ async function handle(request: NextRequest, context: RouteContext) {
   const accessToken = request.cookies.get(ACCESS_COOKIE)?.value;
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
 
-  if (!accessToken) {
+  if (!accessToken && !refreshToken) {
     return NextResponse.json({ code: "unauthorized", message: "no session" }, { status: 401 });
   }
 
-  let backendRes = await forward(request, path, accessToken);
+  // Access-token cookie's 15 min Max-Age can lapse (browser stops sending it) well before the
+  // refresh token does -- fall straight to the refresh path below instead of a doomed forward().
+  let backendRes = accessToken
+    ? await forward(request, path, accessToken)
+    : new Response(null, { status: 401 });
 
   if (backendRes.status === 401 && refreshToken) {
     const rotated = await refreshTokens(refreshToken);
