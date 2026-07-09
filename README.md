@@ -334,8 +334,9 @@ This command will create a Docker image named `rag-appliance-app` based on the `
 
 ## Hardware Requirements
 
-**Minimum: 24 GB RAM. Recommended for a fluent single-user experience: 32 GB RAM.**
-
+<span style="background-color:#28a745; color:white; font-weight:bold; padding:4px 8px; border-radius:4px;">
+Minimum: 24 GB RAM. Recommended for a fluent single-user experience: 32 GB RAM.
+</span>
 `docker-compose.yml` runs quite a few services beyond just the app: `postgres`, `pgbouncer`, `redis`, `qdrant`, `neo4j`, `worker`, `app`, `ui`, `nginx`, plus the observability stack (`prometheus`, `grafana`, `node_exporter`) and GlitchTip (`glitchtip-web`/`-worker`/`-migrate`). None of these have memory limits set, so they scale with real usage rather than a fixed cap.
 
 The dominant cost is the `worker` service: it runs Celery with `--concurrency=2`, and each of those two forked processes independently loads the full docling (layout + table extraction) and `bge-m3` embedding models into memory during document ingestion. `app` separately loads its own copy of the embedding model (and the cross-encoder reranker, lazily, on first query) for the query path. Measured live with `docker stats` while actually ingesting a document, `worker` alone peaked at 2.5–2.8 GB; everything else combined idles around 1–1.3 GB.
