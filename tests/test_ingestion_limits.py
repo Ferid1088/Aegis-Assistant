@@ -12,7 +12,23 @@ from rag.crosscutting.security.ingestion_limits import (
 from rag.crosscutting.security.rate_limit import limiter
 from rag.crosscutting.security.tokens import create_access_token
 from rag.infra.stores.sql.base import get_db
-from rag.infra.stores.sql.models import Role, RolePermission, User, UserRole, UserSession
+from rag.infra.stores.sql.models import (
+    AccessLevel, Department, DocumentType, Role, RolePermission, User, UserRole, UserSession,
+)
+
+
+def _make_metadata_rows(db_session):
+    dept = Department(name="HR")
+    db_session.add(dept)
+    db_session.flush()
+    dtype = DocumentType(label="Policy")
+    db_session.add(dtype)
+    db_session.flush()
+    level = AccessLevel(department_id=dept.id, label="Public", rank=1)
+    db_session.add(level)
+    db_session.flush()
+    db_session.commit()
+    return dept, dtype, level
 
 
 def _make_user_with_token(db_session, username):
@@ -86,10 +102,15 @@ def test_decrement_calls_redis_decr(mock_client):
 
 
 @patch("rag.api.routers.documents.check_and_increment_queued_ingestion", return_value=False)
-def test_upload_rejects_when_queue_limit_reached(mock_check, client, auth_headers):
+def test_upload_rejects_when_queue_limit_reached(mock_check, client, auth_headers, db_session):
+    dept, dtype, level = _make_metadata_rows(db_session)
     resp = client.post(
         "/api/v1/documents", headers=auth_headers,
         files={"file": ("t.pdf", b"%PDF-1.4", "application/pdf")},
+        data={
+            "title": "t", "department_id": str(dept.id),
+            "document_type_id": str(dtype.id), "access_level_ids": [str(level.id)],
+        },
     )
 
     assert resp.status_code == 429
@@ -102,11 +123,16 @@ def test_upload_rejects_when_queue_limit_reached(mock_check, client, auth_header
     side_effect=RuntimeError("db write failed"),
 )
 def test_upload_decrements_counter_when_job_creation_fails_after_increment(
-    mock_create_job, mock_check, mock_decrement, client, auth_headers,
+    mock_create_job, mock_check, mock_decrement, client, auth_headers, db_session,
 ):
+    dept, dtype, level = _make_metadata_rows(db_session)
     resp = client.post(
         "/api/v1/documents", headers=auth_headers,
         files={"file": ("t.pdf", b"%PDF-1.4", "application/pdf")},
+        data={
+            "title": "t", "department_id": str(dept.id),
+            "document_type_id": str(dtype.id), "access_level_ids": [str(level.id)],
+        },
     )
 
     assert resp.status_code == 500
@@ -117,13 +143,18 @@ def test_upload_decrements_counter_when_job_creation_fails_after_increment(
 @patch("rag.api.routers.documents.check_and_increment_queued_ingestion", return_value=True)
 @patch("rag.api.routers.documents.run_ingestion")
 def test_upload_decrements_counter_when_enqueue_fails(
-    mock_run_ingestion, mock_check, mock_decrement, client, auth_headers,
+    mock_run_ingestion, mock_check, mock_decrement, client, auth_headers, db_session,
 ):
     mock_run_ingestion.delay.side_effect = ConnectionError("broker unreachable")
+    dept, dtype, level = _make_metadata_rows(db_session)
 
     resp = client.post(
         "/api/v1/documents", headers=auth_headers,
         files={"file": ("t.pdf", b"%PDF-1.4", "application/pdf")},
+        data={
+            "title": "t", "department_id": str(dept.id),
+            "document_type_id": str(dtype.id), "access_level_ids": [str(level.id)],
+        },
     )
 
     assert resp.status_code == 500
