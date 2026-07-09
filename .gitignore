@@ -3,6 +3,8 @@ data/
 keys/update_signing_privkey.pem
 certs/
 .venv/
+.local-bin/
+logs/
 **/__pycache__/
 *.pyc
 .DS_Store
