@@ -271,3 +271,78 @@ def test_expired_access_token_transparently_refreshes(short_ttl_backend_and_ui):
     assert resp.status_code == 200
     assert resp.json()["user"]["username"] == "ttl-user"
     assert session.cookies.get("aegis_at") != old_access
+
+
+@pytest.fixture(scope="module")
+def empty_backend_and_ui():
+    """Same shape as `backend_and_ui` above, but seeds zero users -- this is
+    what a genuinely fresh install looks like, and is what the setup wizard
+    is supposed to handle."""
+    engine = create_engine(settings.database_url)
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    engine.dispose()
+
+    backend_port = BACKEND_PORT + 2
+    ui_port = UI_PORT + 2
+    backend_url = f"http://127.0.0.1:{backend_port}"
+    ui_url = f"http://127.0.0.1:{ui_port}"
+
+    backend_proc = subprocess.Popen(
+        ["uv", "run", "uvicorn", "rag.api.main:create_app", "--factory",
+         "--host", "127.0.0.1", "--port", str(backend_port)],
+        cwd=REPO_ROOT,
+    )
+    _wait_for(f"{backend_url}/healthz")
+
+    ui_env = {**os.environ, "API_BASE_URL": backend_url, "COOKIE_SECURE": "false"}
+    ui_proc = subprocess.Popen(["npm", "run", "start", "--", "-p", str(ui_port)], cwd=UI_DIR, env=ui_env)
+    _wait_for(ui_url)
+
+    yield {"ui_url": ui_url}
+
+    ui_proc.send_signal(signal.SIGTERM)
+    ui_proc.wait(timeout=10)
+    backend_proc.send_signal(signal.SIGTERM)
+    backend_proc.wait(timeout=10)
+    Base.metadata.drop_all(create_engine(settings.database_url))
+
+
+def test_root_redirects_to_setup_when_no_admin_exists(empty_backend_and_ui):
+    ui_url = empty_backend_and_ui["ui_url"]
+    resp = requests.get(f"{ui_url}/chat")
+    assert resp.status_code == 200  # requests follows the redirect
+    assert resp.url == f"{ui_url}/setup"
+
+
+def test_setup_wizard_creates_admin_and_logs_in(empty_backend_and_ui):
+    ui_url = empty_backend_and_ui["ui_url"]
+    session = requests.Session()
+
+    resp = session.post(
+        f"{ui_url}/api/setup",
+        json={"username": "first-admin", "password": "correct-horse-battery-staple"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    assert "aegis_at" in session.cookies
+
+    session_resp = session.get(f"{ui_url}/api/v1/session")
+    assert session_resp.status_code == 200
+    body = session_resp.json()
+    assert body["user"]["username"] == "first-admin"
+    assert body["nav"]["admin"] is True
+
+
+def test_root_redirects_to_login_once_setup_is_done(empty_backend_and_ui):
+    ui_url = empty_backend_and_ui["ui_url"]
+    resp = requests.get(f"{ui_url}/chat")
+    assert resp.status_code == 200
+    assert resp.url == f"{ui_url}/login"
+
+
+def test_visiting_setup_page_after_completion_redirects_to_login(empty_backend_and_ui):
+    ui_url = empty_backend_and_ui["ui_url"]
+    resp = requests.get(f"{ui_url}/setup")
+    assert resp.status_code == 200
+    assert resp.url == f"{ui_url}/login"
