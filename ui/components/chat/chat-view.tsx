@@ -93,7 +93,7 @@ export function ChatView() {
         ...m,
         {
           id: crypto.randomUUID(), role: "assistant", content: "",
-          answer: { verdict: "unanswerable", text: "", unanswerableReason: reason, citations: [] },
+          answer: { verdict: "error", text: "", unanswerableReason: reason, citations: [] },
         },
       ]);
     } finally {

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, FileText, HelpCircle, Info, Pencil } from "lucide-react";
+import { AlertTriangle, FileText, HelpCircle, Info, Pencil, WifiOff } from "lucide-react";
 import type { ChatAnswer } from "@/types";
 import { Pill } from "@/components/ui/primitives";
 
@@ -11,7 +11,11 @@ export function AnswerBlock({ answer, onCorrect }: { answer: ChatAnswer; onCorre
 
   return (
     <div className="max-w-[80%] space-y-3">
-      {answer.verdict === "clarification" ? (
+      {answer.verdict === "error" ? (
+        <Callout tone="offline" icon={<WifiOff className="h-4 w-4" />} title="Something went wrong">
+          {answer.unanswerableReason ?? "The request failed. Please try again."}
+        </Callout>
+      ) : answer.verdict === "clarification" ? (
         <Callout tone="info" icon={<HelpCircle className="h-4 w-4" />} title="Needs a detail">
           {answer.clarificationQuestion}
         </Callout>

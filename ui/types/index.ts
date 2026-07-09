@@ -96,8 +96,13 @@ export type AnswerVerdict =
   | "unanswerable"
   | "partial";
 
+// Client-side only -- never returned by the backend. Distinguishes a genuine
+// "not in the documents" refusal from a request failure (network error, 500,
+// timeout) so the two don't render as the same "can't answer" message.
+export type ClientAnswerVerdict = AnswerVerdict | "error";
+
 export interface ChatAnswer {
-  verdict: AnswerVerdict;
+  verdict: ClientAnswerVerdict;
   text: string;
   assumptions?: string[];
   clarificationQuestion?: string;
