@@ -3,6 +3,7 @@
 import sys
 import time
 
+from rag.config import settings
 from rag.migrations.neo4j.migration_0001_baseline import MIGRATION as NEO4J_0001
 from rag.migrations.qdrant.migration_0001_baseline import MIGRATION as QDRANT_0001
 from rag.migrations.runner import apply_pending
@@ -58,7 +59,11 @@ def main():
     db = SessionLocal()
     try:
         qdrant_ok = _migrate_store(db, "qdrant", QdrantVectorStore, QDRANT_MIGRATIONS)
-        neo4j_ok = _migrate_store(db, "neo4j", Neo4jGraphStore, NEO4J_MIGRATIONS)
+        if settings.build_graph:
+            neo4j_ok = _migrate_store(db, "neo4j", Neo4jGraphStore, NEO4J_MIGRATIONS)
+        else:
+            print("neo4j: skipped (BUILD_GRAPH=false)")
+            neo4j_ok = True
     finally:
         db.close()
 

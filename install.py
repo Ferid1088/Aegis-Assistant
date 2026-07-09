@@ -125,8 +125,17 @@ def run_install() -> None:
     # picks up the rebuilt URL (Phase 8.10b).
     postgres_password = read_env_value(env_path, "POSTGRES_PASSWORD")
     if postgres_password:
-        settings.database_url = f"postgresql+psycopg://postgres:{postgres_password}@localhost:5432/appliance"
+        database_url = f"postgresql+psycopg://postgres:{postgres_password}@localhost:5432/appliance"
+        settings.database_url = database_url
         reset_engine()
+        # The in-process mutation above only helps same-process callers
+        # (ensure_glitchtip_database()/SessionLocal()/healthcheck_main() below).
+        # `alembic upgrade head` a few lines down runs as a separate subprocess
+        # that imports rag.config fresh -- it never sees this mutation, and
+        # without DATABASE_URL in .env it falls back to Settings' hardcoded
+        # dev-only default password, failing auth against the real generated
+        # one. Write it so that fresh process picks up the real value too.
+        write_missing_env_vars(env_path, {"DATABASE_URL": database_url})
 
     print("== Starting services ==")
     # Must exist before `docker compose up` touches it: on Linux, dockerd (running
@@ -144,11 +153,17 @@ def run_install() -> None:
     # LLM_BACKEND=vllm above and then never actually start the vllm container,
     # so the healthcheck step below would fail trying to reach it. No-GPU path
     # is unchanged: no profile flag, same argv as before.
-    compose_up_cmd = ["docker", "compose"]
+    compose_base_cmd = ["docker", "compose"]
     if has_gpu:
-        compose_up_cmd += ["--profile", "gpu"]
-    compose_up_cmd += ["up", "-d"]
-    subprocess.run(compose_up_cmd, check=True)
+        compose_base_cmd += ["--profile", "gpu"]
+    # Try to fetch the published, data-free app/worker/ui images from GHCR first --
+    # this is what lets a user run this installer from just this repo checkout
+    # (no local build tools/network access to PyPI needed) and get a ready-to-use
+    # app. If the pull fails (offline, private fork with no matching release,
+    # local dev on an unreleased commit), `up -d` below falls back to building
+    # from the Dockerfile per docker-compose.yml's `build:` key.
+    subprocess.run(compose_base_cmd + ["pull"], check=False)
+    subprocess.run(compose_base_cmd + ["up", "-d"], check=True)
 
     # `up -d` returns once containers are started, not once postgres has finished
     # its first-run initdb bootstrap -- wait for it before anything execs into it.

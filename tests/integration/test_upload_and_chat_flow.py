@@ -164,4 +164,4 @@ def test_upload_index_and_chat_round_trip(client):
     assert chat_resp.status_code == 200, chat_resp.text
     body = chat_resp.json()
     assert body["answer"]
-    assert body["turn_index"] == 1  # first turn: next_index = coalesce(max(turn_index), 0) + 1
+    assert body["turnIndex"] == 1  # first turn: next_index = coalesce(max(turn_index), 0) + 1; MessageResponse serializes camelCase (to_camel alias, see 03bb957)

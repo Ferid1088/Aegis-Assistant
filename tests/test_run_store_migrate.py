@@ -100,15 +100,19 @@ def test_migrate_store_gives_up_after_max_attempts():
 
 
 def test_main_attempts_neo4j_even_when_qdrant_construction_fails_and_exits_nonzero():
-    """End-to-end sanity check on main(): both stores are always attempted, and a
-    single failure causes a non-zero exit — without asserting real DB/store wiring."""
+    """End-to-end sanity check on main(): both stores are always attempted when the
+    knowledge graph is enabled, and a single failure causes a non-zero exit —
+    without asserting real DB/store wiring."""
     import pytest
+
+    from rag.config import settings
 
     with patch("run_store_migrate.SessionLocal") as mock_session_local, \
          patch("run_store_migrate.QdrantVectorStore", side_effect=RuntimeError("qdrant down")) as mock_qdrant, \
          patch("run_store_migrate.Neo4jGraphStore") as mock_neo4j, \
          patch("run_store_migrate.apply_pending", return_value=[1]), \
-         patch("run_store_migrate.time.sleep"):
+         patch("run_store_migrate.time.sleep"), \
+         patch.object(settings, "build_graph", True):
         mock_session_local.return_value = MagicMock()
 
         from run_store_migrate import main
@@ -119,3 +123,20 @@ def test_main_attempts_neo4j_even_when_qdrant_construction_fails_and_exits_nonze
     assert exc_info.value.code == 1
     assert mock_qdrant.call_count == 10  # retried 10 times (default max_attempts)
     mock_neo4j.assert_called_once()  # neo4j is still attempted despite qdrant failing
+
+
+def test_main_skips_neo4j_when_build_graph_disabled_and_qdrant_succeeds():
+    from rag.config import settings
+
+    with patch("run_store_migrate.SessionLocal") as mock_session_local, \
+         patch("run_store_migrate.QdrantVectorStore") as mock_qdrant, \
+         patch("run_store_migrate.Neo4jGraphStore") as mock_neo4j, \
+         patch("run_store_migrate.apply_pending", return_value=[]), \
+         patch.object(settings, "build_graph", False):
+        mock_session_local.return_value = MagicMock()
+
+        from run_store_migrate import main
+
+        main()  # should not raise SystemExit -- both "stores" report ok
+
+    mock_neo4j.assert_not_called()

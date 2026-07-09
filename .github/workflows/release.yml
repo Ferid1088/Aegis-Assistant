@@ -4,6 +4,10 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -22,7 +26,9 @@ jobs:
         run: uv sync --frozen
 
       - name: Build the images
-        run: docker build -t rag-appliance-app:release .
+        run: |
+          docker build -t rag-appliance-app:release .
+          docker build -t rag-appliance-ui:release ./ui
 
       - name: Trivy scan (CRITICAL only, blocking)
         uses: aquasecurity/trivy-action@master
@@ -42,6 +48,30 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the images to GHCR
+        # app and worker run from the same Dockerfile/context (only their compose
+        # `command:` differs), so the one build above is pushed under both tags.
+        # These images ship no user data or knowledge base -- just the app code
+        # and its dependencies; ./data, models, etc. are bind-mounted at runtime.
+        run: |
+          for name in app worker; do
+            docker tag rag-appliance-app:release "ghcr.io/ferid1088/aegis-assistant-${name}:${{ steps.tag.outputs.version }}"
+            docker tag rag-appliance-app:release "ghcr.io/ferid1088/aegis-assistant-${name}:latest"
+            docker push "ghcr.io/ferid1088/aegis-assistant-${name}:${{ steps.tag.outputs.version }}"
+            docker push "ghcr.io/ferid1088/aegis-assistant-${name}:latest"
+          done
+          docker tag rag-appliance-ui:release "ghcr.io/ferid1088/aegis-assistant-ui:${{ steps.tag.outputs.version }}"
+          docker tag rag-appliance-ui:release "ghcr.io/ferid1088/aegis-assistant-ui:latest"
+          docker push "ghcr.io/ferid1088/aegis-assistant-ui:${{ steps.tag.outputs.version }}"
+          docker push "ghcr.io/ferid1088/aegis-assistant-ui:latest"
 
       - name: Build the unsigned bundle
         run: uv run python build_bundle.py ${{ steps.tag.outputs.version }} "${{ github.event.head_commit.message }}"

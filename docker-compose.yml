@@ -5,6 +5,11 @@ services:
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_server_memory_heap_max__size: 512M
+    # Loopback-only bolt port, matching postgres/redis/qdrant's existing convention --
+    # install.py's host-side run_store_migrate.py step connects to neo4j from outside
+    # the Docker network and could never reach it without this (a real, previously
+    # undiscovered gap: every other store got this fix, neo4j never did).
+    ports: ["127.0.0.1:7687:7687"]
     volumes:
       - ./data/neo4j:/data
     healthcheck:
@@ -126,8 +131,12 @@ services:
 
   worker:
     restart: unless-stopped
+    # `docker compose pull` fetches the published, data-free image below;
+    # `docker compose build` (local dev / no registry access) builds it from
+    # source instead. Nothing user- or knowledge-base-specific is baked into
+    # this image -- all of that lives in the bind-mounted ./data volume.
+    image: ghcr.io/ferid1088/aegis-assistant-worker:${APP_VERSION:-latest}
     build: .
-    image: rag-appliance-worker:latest
     command: uv run celery -A rag.worker.celery_app worker --loglevel=info --concurrency=2
     env_file: .env
     environment:
@@ -203,8 +212,9 @@ services:
 
   app:
     restart: unless-stopped
+    # Same pull-vs-build split as worker above.
+    image: ghcr.io/ferid1088/aegis-assistant-app:${APP_VERSION:-latest}
     build: .
-    image: rag-appliance-app:latest
     command: uv run uvicorn rag.api.main:create_app --factory --host 0.0.0.0 --port 8000
     env_file: .env
     environment:
@@ -267,8 +277,9 @@ services:
 
   ui:
     restart: unless-stopped
+    # Same pull-vs-build split as worker/app above.
+    image: ghcr.io/ferid1088/aegis-assistant-ui:${APP_VERSION:-latest}
     build: ./ui
-    image: rag-appliance-ui:latest
     environment:
       API_BASE_URL: http://app:8000
     read_only: true
