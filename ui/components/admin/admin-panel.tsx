@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PageTitle } from "@/components/ui/primitives";
 import { UsersTab } from "./users-tab";
 import { RegistryTab } from "./registry-tab";
+import { DepartmentsTab } from "./departments-tab";
 import { SourcesTab } from "@/components/sources/sources-tab";
 
 const TABS = ["users", "roles", "departments", "types", "sources"] as const;
@@ -23,7 +24,7 @@ export function AdminPanel() {
             </div>
             {tab === "users" ? <UsersTab /> : null}
             {tab === "roles" ? <RegistryTab title="Roles" endpoint="roles" bodyKey="name" /> : null}
-            {tab === "departments" ? <RegistryTab title="Departments" endpoint="departments" bodyKey="name" /> : null}
+            {tab === "departments" ? <DepartmentsTab /> : null}
             {tab === "types" ? <RegistryTab title="Document types" endpoint="document-types" bodyKey="label" /> : null}
             {tab === "sources" ? <SourcesTab /> : null}
         </div>
